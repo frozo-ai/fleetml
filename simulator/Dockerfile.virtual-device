@@ -1,0 +1,21 @@
+FROM golang:1.22-alpine AS builder
+WORKDIR /app
+COPY agent/go.mod agent/go.sum* ./agent/
+COPY proto/go.mod proto/go.sum* ./proto/
+WORKDIR /app/agent
+RUN go mod download 2>/dev/null || true
+COPY agent/ /app/agent/
+COPY proto/ /app/proto/
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /agent ./cmd/agent
+
+FROM alpine:3.19
+RUN apk add --no-cache ca-certificates
+COPY --from=builder /agent /usr/local/bin/agent
+
+# Virtual device defaults
+ENV FLEETML_MODE=virtual
+ENV DEVICE_ID=""
+ENV FLEETML_SERVER=server:50051
+ENV HEARTBEAT_INTERVAL=10s
+
+ENTRYPOINT ["/usr/local/bin/agent"]

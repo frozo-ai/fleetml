@@ -1,0 +1,37 @@
+syntax = "proto3";
+package fleetml.v1;
+option go_package = "github.com/fleetml/fleetml/proto/gen/go/fleetml/v1";
+
+import "google/protobuf/timestamp.proto";
+
+message DeviceInfo {
+    string device_id = 1;
+    string arch = 2;              // arm64, amd64
+    string gpu_type = 3;          // nvidia, intel, none
+    string runtime = 4;           // tensorrt, openvino, tflite, snpe, onnx
+    int32 ram_mb = 5;
+    int32 disk_gb = 6;
+    string os = 7;
+    string hardware_model = 8;    // "NVIDIA Jetson Orin Nano"
+    map<string, string> labels = 9;
+}
+
+message SystemMetrics {
+    float cpu_percent = 1;
+    float gpu_percent = 2;
+    int32 ram_mb_used = 3;
+    float disk_percent = 4;
+    float temperature_c = 5;
+    float uptime_hours = 6;
+}
+
+message ModelMetrics {
+    string name = 1;
+    string version = 2;
+    string runtime = 3;
+    int64 inference_count = 4;
+    float avg_latency_ms = 5;
+    float p99_latency_ms = 6;
+    float accuracy = 7;
+    float drift_score = 8;
+}

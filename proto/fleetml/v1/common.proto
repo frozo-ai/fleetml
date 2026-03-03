@@ -1,0 +1,12 @@
+syntax = "proto3";
+package fleetml.v1;
+option go_package = "github.com/fleetml/fleetml/proto/gen/go/fleetml/v1";
+
+import "google/protobuf/timestamp.proto";
+
+message Empty {}
+
+message Error {
+    string code = 1;
+    string message = 2;
+}

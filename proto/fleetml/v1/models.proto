@@ -1,0 +1,19 @@
+syntax = "proto3";
+package fleetml.v1;
+option go_package = "github.com/fleetml/fleetml/proto/gen/go/fleetml/v1";
+
+import "google/protobuf/timestamp.proto";
+
+message ModelInfo {
+    string id = 1;
+    string name = 2;
+    string version = 3;
+    string format = 4;            // onnx, tensorrt, openvino, tflite, snpe
+    string artifact_url = 5;
+    int64 artifact_size = 6;
+    string checksum = 7;          // sha256:...
+    string description = 8;
+    map<string, string> metadata = 9;
+    repeated string tags = 10;
+    google.protobuf.Timestamp created_at = 11;
+}

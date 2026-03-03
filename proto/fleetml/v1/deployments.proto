@@ -1,0 +1,29 @@
+syntax = "proto3";
+package fleetml.v1;
+option go_package = "github.com/fleetml/fleetml/proto/gen/go/fleetml/v1";
+
+import "google/protobuf/timestamp.proto";
+
+message DeploymentInfo {
+    string id = 1;
+    string model_id = 2;
+    string state = 3;             // pending, rolling_out, completed, failed, rolled_back, cancelled
+    string target_type = 4;       // fleet, device, label_selector
+    string target_id = 5;
+    int32 total_devices = 6;
+    int32 completed_devices = 7;
+    int32 failed_devices = 8;
+    int32 queued_devices = 9;
+    string deployment_policy = 10; // immediate, canary
+    google.protobuf.Timestamp created_at = 11;
+    google.protobuf.Timestamp started_at = 12;
+    google.protobuf.Timestamp completed_at = 13;
+}
+
+message DeploymentDeviceStatus {
+    string device_id = 1;
+    string state = 2;             // pending, downloading, applying, completed, failed, queued
+    string error = 3;
+    google.protobuf.Timestamp started_at = 4;
+    google.protobuf.Timestamp completed_at = 5;
+}

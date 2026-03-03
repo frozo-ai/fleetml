@@ -1,0 +1,103 @@
+syntax = "proto3";
+package fleetml.v1;
+option go_package = "github.com/fleetml/fleetml/proto/gen/go/fleetml/v1";
+
+import "google/protobuf/timestamp.proto";
+import "fleetml/v1/common.proto";
+import "fleetml/v1/devices.proto";
+
+// Agent <-> Control Plane service
+service AgentService {
+    // Agent registration
+    rpc Register(RegisterRequest) returns (RegisterResponse);
+
+    // Heartbeat stream (bidirectional)
+    rpc Heartbeat(stream HeartbeatRequest) returns (stream HeartbeatResponse);
+
+    // Model download
+    rpc GetModelArtifact(GetModelArtifactRequest) returns (stream ModelArtifactChunk);
+
+    // Report deployment status
+    rpc ReportDeploymentStatus(DeploymentStatusReport) returns (Empty);
+
+    // Bulk sync (after offline period)
+    rpc BulkSyncMetrics(stream BulkMetricsRequest) returns (BulkSyncResponse);
+}
+
+message RegisterRequest {
+    DeviceInfo device_info = 1;
+}
+
+message RegisterResponse {
+    string agent_id = 1;           // Server-assigned UUID
+    int32 heartbeat_interval_sec = 2; // Default: 30
+    string certificate = 3;        // mTLS certificate for this agent
+}
+
+message HeartbeatRequest {
+    string device_id = 1;
+    google.protobuf.Timestamp timestamp = 2;
+    string status = 3;             // healthy, warning, error
+    repeated ModelMetrics models = 4;
+    SystemMetrics system = 5;
+}
+
+message HeartbeatResponse {
+    repeated Command commands = 1;  // Commands to execute
+}
+
+message Command {
+    string id = 1;
+    string type = 2;               // deploy_model, rollback, update_config, restart, set_ab_test
+    bytes payload = 3;             // JSON-encoded command payload
+    google.protobuf.Timestamp issued_at = 4;
+}
+
+message DeployModelPayload {
+    string model_name = 1;
+    string model_version = 2;
+    string runtime = 3;            // tensorrt, openvino, tflite, snpe, onnx
+    string artifact_url = 4;       // S3 URL
+    string checksum = 5;           // sha256:...
+    string rollback_version = 6;   // Version to rollback to on failure
+    string deployment_policy = 7;  // immediate, canary
+}
+
+message SetABTestPayload {
+    string model_a_name = 1;
+    string model_a_version = 2;
+    string model_b_name = 3;
+    string model_b_version = 4;
+    int32 split_a_percent = 5;     // e.g., 80
+    int32 split_b_percent = 6;     // e.g., 20
+    string test_id = 7;
+}
+
+message GetModelArtifactRequest {
+    string model_name = 1;
+    string model_version = 2;
+    string runtime = 3;
+}
+
+message ModelArtifactChunk {
+    bytes data = 1;
+    int64 total_size = 2;
+    string checksum = 3;
+}
+
+message DeploymentStatusReport {
+    string device_id = 1;
+    string deployment_id = 2;
+    string state = 3;              // downloading, applying, completed, failed
+    string error = 4;
+    google.protobuf.Timestamp timestamp = 5;
+}
+
+message BulkMetricsRequest {
+    string device_id = 1;
+    repeated HeartbeatRequest heartbeats = 2; // Buffered heartbeats
+}
+
+message BulkSyncResponse {
+    repeated Command pending_commands = 1; // Commands queued while offline
+}
