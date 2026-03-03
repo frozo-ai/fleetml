@@ -14,6 +14,7 @@ import (
 	"github.com/fleetml/fleetml/server/internal/api/grpc"
 	"github.com/fleetml/fleetml/server/internal/api/rest"
 	"github.com/fleetml/fleetml/server/internal/auth"
+	"github.com/fleetml/fleetml/server/internal/compiler"
 	"github.com/fleetml/fleetml/server/internal/config"
 	"github.com/fleetml/fleetml/server/internal/deploy"
 	"github.com/fleetml/fleetml/server/internal/fleet"
@@ -114,14 +115,21 @@ func main() {
 	canaryMgr := deploy.NewCanaryManager(pool, log)
 	orchestrator := deploy.NewOrchestrator(pool, fleetMgr, registry, canaryMgr, log)
 
-	// 5b. Initialize monitoring
+	// 5b. Initialize compiler client
+	var compilerClient *compiler.Client
+	if cfg.Compiler.URL != "" {
+		compilerClient = compiler.NewClient(cfg.Compiler.URL)
+		log.Infow("compiler service configured", "url", cfg.Compiler.URL)
+	}
+
+	// 5c. Initialize monitoring
 	metricsProcessor := monitor.NewMetricsProcessor(pool, log)
 	alertEvaluator := monitor.NewAlertEvaluator(pool, 90*time.Second, log)
 	go alertEvaluator.Start(ctx)
 	log.Info("monitoring services started (metrics processor, alert evaluator)")
 
 	// 6. Start REST API
-	router := rest.NewRouter(fleetMgr, registry, orchestrator, jwtService, pool, log)
+	router := rest.NewRouter(fleetMgr, registry, orchestrator, compilerClient, jwtService, pool, log)
 	restAddr := fmt.Sprintf(":%d", cfg.Server.RESTPort)
 	httpServer := &http.Server{
 		Addr:         restAddr,

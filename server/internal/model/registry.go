@@ -207,6 +207,57 @@ func (r *Registry) DeleteModel(ctx context.Context, id string) error {
 	return nil
 }
 
+// AddCompiledVariant appends a compiled variant to the model's compiled_variants JSONB.
+func (r *Registry) AddCompiledVariant(ctx context.Context, modelID string, variant domain.CompiledVariant) error {
+	// Get current variants
+	m, err := r.GetModelByID(ctx, modelID)
+	if err != nil {
+		return fmt.Errorf("get model: %w", err)
+	}
+
+	// Replace existing variant for this runtime, or append new one
+	variants := m.CompiledVariants
+	found := false
+	for i, v := range variants {
+		if v.Runtime == variant.Runtime {
+			variants[i] = variant
+			found = true
+			break
+		}
+	}
+	if !found {
+		variants = append(variants, variant)
+	}
+
+	variantsJSON, err := json.Marshal(variants)
+	if err != nil {
+		return fmt.Errorf("marshal variants: %w", err)
+	}
+
+	_, err = r.db.Exec(ctx, `UPDATE models SET compiled_variants = $1 WHERE id = $2`, variantsJSON, modelID)
+	if err != nil {
+		return fmt.Errorf("update compiled variants: %w", err)
+	}
+
+	return nil
+}
+
+// GetVariantForRuntime returns the compiled variant matching the given runtime, or nil if none exists.
+func (r *Registry) GetVariantForRuntime(ctx context.Context, modelID, runtime string) (*domain.CompiledVariant, error) {
+	m, err := r.GetModelByID(ctx, modelID)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, v := range m.CompiledVariants {
+		if v.Runtime == runtime {
+			return &v, nil
+		}
+	}
+
+	return nil, nil
+}
+
 // GetArtifactURL generates a pre-signed URL for model download.
 func (r *Registry) GetArtifactURL(ctx context.Context, modelID string) (string, error) {
 	m, err := r.GetModelByID(ctx, modelID)
@@ -221,4 +272,42 @@ func (r *Registry) GetArtifactURL(ctx context.Context, modelID string) (string, 
 	}
 
 	return url, nil
+}
+
+// GetVariantArtifactURL generates a pre-signed URL for a compiled variant's artifact.
+func (r *Registry) GetVariantArtifactURL(ctx context.Context, modelID, runtime string) (string, error) {
+	variant, err := r.GetVariantForRuntime(ctx, modelID, runtime)
+	if err != nil {
+		return "", err
+	}
+	if variant == nil {
+		return "", fmt.Errorf("no variant for runtime %s", runtime)
+	}
+
+	// The variant's ArtifactURL is like s3://bucket/model-id/compiled/runtime/model.ext
+	// Extract the key portion after s3://bucket/
+	key := extractS3Key(variant.ArtifactURL)
+	url, err := r.storage.GeneratePresignedURL(ctx, key, 1*time.Hour)
+	if err != nil {
+		return "", fmt.Errorf("generate variant presigned url: %w", err)
+	}
+
+	return url, nil
+}
+
+// extractS3Key extracts the object key from an s3:// URL.
+func extractS3Key(s3URL string) string {
+	// s3://bucket-name/path/to/key -> path/to/key
+	const prefix = "s3://"
+	if len(s3URL) <= len(prefix) {
+		return s3URL
+	}
+	rest := s3URL[len(prefix):]
+	// Find first slash after bucket name
+	for i, c := range rest {
+		if c == '/' {
+			return rest[i+1:]
+		}
+	}
+	return rest
 }

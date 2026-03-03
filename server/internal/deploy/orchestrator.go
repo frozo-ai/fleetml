@@ -402,10 +402,11 @@ func (o *Orchestrator) RollbackDeployment(ctx context.Context, deploymentID stri
 
 // GetPendingCommands returns deploy commands for devices with pending deployments.
 // Called during heartbeat processing to piggyback commands.
+// Prefers compiled variants matching the device's runtime over the base ONNX artifact.
 func (o *Orchestrator) GetPendingCommands(ctx context.Context, deviceID string) ([]map[string]interface{}, error) {
 	rows, err := o.db.Query(ctx, `
 		SELECT dep.id, m.id, m.name, m.version, m.format, m.checksum,
-			   dep.deployment_policy
+			   m.compiled_variants, dep.deployment_policy, d.runtime
 		FROM deployment_device_status dds
 		JOIN deployments dep ON dep.id = dds.deployment_id
 		JOIN models m ON m.id = dep.model_id
@@ -420,15 +421,53 @@ func (o *Orchestrator) GetPendingCommands(ctx context.Context, deviceID string) 
 	var commands []map[string]interface{}
 	for rows.Next() {
 		var deployID, modelID, modelName, modelVersion, format, checksum, policy string
-		if err := rows.Scan(&deployID, &modelID, &modelName, &modelVersion, &format, &checksum, &policy); err != nil {
+		var deviceRuntime string
+		var variantsJSON []byte
+		if err := rows.Scan(&deployID, &modelID, &modelName, &modelVersion, &format, &checksum,
+			&variantsJSON, &policy, &deviceRuntime); err != nil {
 			continue
 		}
 
-		// Generate presigned download URL for the agent
-		artifactURL, err := o.registry.GetArtifactURL(ctx, modelID)
-		if err != nil {
-			o.logger.Warnw("failed to generate artifact URL", "model_id", modelID, "error", err)
-			continue
+		// Check if a compiled variant exists for this device's runtime
+		selectedRuntime := format
+		selectedChecksum := checksum
+		useVariant := false
+
+		if deviceRuntime != "" && deviceRuntime != "onnx" && variantsJSON != nil {
+			var variants []domain.CompiledVariant
+			if err := json.Unmarshal(variantsJSON, &variants); err == nil {
+				for _, v := range variants {
+					if v.Runtime == deviceRuntime {
+						selectedRuntime = v.Runtime
+						selectedChecksum = v.Checksum
+						useVariant = true
+						break
+					}
+				}
+			}
+		}
+
+		// Generate presigned download URL
+		var artifactURL string
+		if useVariant {
+			var err error
+			artifactURL, err = o.registry.GetVariantArtifactURL(ctx, modelID, deviceRuntime)
+			if err != nil {
+				o.logger.Warnw("failed to generate variant presigned URL, falling back to base",
+					"model_id", modelID, "runtime", deviceRuntime, "error", err)
+				useVariant = false
+			}
+		}
+
+		if !useVariant {
+			selectedRuntime = format
+			selectedChecksum = checksum
+			var err error
+			artifactURL, err = o.registry.GetArtifactURL(ctx, modelID)
+			if err != nil {
+				o.logger.Warnw("failed to generate artifact URL", "model_id", modelID, "error", err)
+				continue
+			}
 		}
 
 		commands = append(commands, map[string]interface{}{
@@ -437,9 +476,9 @@ func (o *Orchestrator) GetPendingCommands(ctx context.Context, deviceID string) 
 				"deployment_id":     deployID,
 				"model_name":        modelName,
 				"model_version":     modelVersion,
-				"runtime":           format,
+				"runtime":           selectedRuntime,
 				"artifact_url":      artifactURL,
-				"checksum":          checksum,
+				"checksum":          selectedChecksum,
 				"deployment_policy": policy,
 			},
 		})

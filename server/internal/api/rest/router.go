@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/fleetml/fleetml/server/internal/auth"
+	"github.com/fleetml/fleetml/server/internal/compiler"
 	"github.com/fleetml/fleetml/server/internal/deploy"
 	"github.com/fleetml/fleetml/server/internal/fleet"
 	"github.com/fleetml/fleetml/server/internal/model"
@@ -19,6 +20,7 @@ func NewRouter(
 	fleetMgr *fleet.Manager,
 	registry *model.Registry,
 	orchestrator *deploy.Orchestrator,
+	compilerClient *compiler.Client,
 	jwtService *auth.JWTService,
 	db *pgxpool.Pool,
 	logger *zap.SugaredLogger,
@@ -43,6 +45,7 @@ func NewRouter(
 	healthHandler := NewHealthHandler(db, logger)
 	authHandler := NewAuthHandler(jwtService, db, logger)
 	modelHandler := NewModelHandler(registry, logger)
+	compileHandler := NewCompileHandler(registry, compilerClient, logger)
 	deviceHandler := NewDeviceHandler(fleetMgr, logger)
 	fleetHandler := NewFleetHandler(fleetMgr, logger)
 	deployHandler := NewDeployHandler(orchestrator, logger)
@@ -66,6 +69,7 @@ func NewRouter(
 				r.With(auth.RequirePermission("models:write")).Post("/", modelHandler.Upload)
 				r.With(auth.RequirePermission("models:read")).Get("/{id}", modelHandler.Get)
 				r.With(auth.RequirePermission("models:delete")).Delete("/{id}", modelHandler.Delete)
+				r.With(auth.RequirePermission("models:write")).Post("/{id}/compile", compileHandler.Compile)
 			})
 
 			// Devices

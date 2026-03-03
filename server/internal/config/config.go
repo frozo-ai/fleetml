@@ -14,6 +14,7 @@ type Config struct {
 	Auth      AuthConfig      `yaml:"auth"`
 	Heartbeat HeartbeatConfig `yaml:"heartbeat"`
 	Deploy    DeployConfig    `yaml:"deployment"`
+	Compiler  CompilerConfig  `yaml:"compiler"`
 	Logging   LoggingConfig   `yaml:"logging"`
 }
 
@@ -58,6 +59,10 @@ type DeployConfig struct {
 	ConcurrentDeploysPerDev int           `yaml:"concurrent_deploys_per_device"`
 }
 
+type CompilerConfig struct {
+	URL string `yaml:"url"`
+}
+
 type LoggingConfig struct {
 	Level string `yaml:"level"`
 }
@@ -90,6 +95,9 @@ func DefaultConfig() *Config {
 		Deploy: DeployConfig{
 			DefaultTimeout:          10 * time.Minute,
 			ConcurrentDeploysPerDev: 1,
+		},
+		Compiler: CompilerConfig{
+			URL: "",
 		},
 		Logging: LoggingConfig{
 			Level: "info",
@@ -128,6 +136,9 @@ func Load(path string) (*Config, error) {
 	}
 	if v := os.Getenv("JWT_SECRET"); v != "" {
 		cfg.Auth.JWTSecret = v
+	}
+	if v := os.Getenv("COMPILER_URL"); v != "" {
+		cfg.Compiler.URL = v
 	}
 
 	return cfg, nil
