@@ -2,12 +2,12 @@ const features = [
   {
     icon: '\u26A1',
     title: 'Zero-Downtime Hot-Swap',
-    description: 'Swap models on running devices without losing a single inference. Your fleet keeps serving while updates roll out.',
+    description: 'FleetML swaps models on running devices without losing a single inference. Your fleet keeps serving while updates roll out.',
   },
   {
     icon: '\uD83D\uDCE1',
     title: 'Offline-First',
-    description: 'Devices keep running when the network goes down. All data syncs automatically when connectivity returns.',
+    description: 'FleetML devices keep running when the network goes down. All data syncs automatically when connectivity returns.',
   },
   {
     icon: '\uD83D\uDEE1\uFE0F',
@@ -17,7 +17,7 @@ const features = [
   {
     icon: '\uD83E\uDDE9',
     title: 'Chip-Neutral',
-    description: 'Upload one ONNX model. FleetML compiles it for each device\u2019s chip automatically \u2014 TensorRT, OpenVINO, TFLite, and more.',
+    description: 'Upload one ONNX model and FleetML compiles it for each device\u2019s chip automatically \u2014 TensorRT, OpenVINO, TFLite, and more.',
   },
   {
     icon: '\uD83D\uDCCA',

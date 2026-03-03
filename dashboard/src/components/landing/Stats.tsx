@@ -66,6 +66,9 @@ export default function Stats() {
             </div>
           ))}
         </div>
+        <p className="text-xs text-gray-700 text-center mt-6 scroll-reveal">
+          Benchmarked with FleetML v0.1 on NVIDIA Jetson Nano + Raspberry Pi 4 fleet, March 2026.
+        </p>
       </div>
     </section>
   );

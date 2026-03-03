@@ -13,9 +13,9 @@ export default function LogoCloud() {
   return (
     <section className="py-16 border-t border-white/5">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 text-center">
-        <h3 className="text-lg font-semibold text-gray-300 mb-8 scroll-reveal">
+        <h2 className="text-lg font-semibold text-gray-300 mb-8 scroll-reveal">
           One model. Every chip.
-        </h3>
+        </h2>
         <div className="flex flex-wrap items-center justify-center gap-4 scroll-reveal">
           {platforms.map((name) => (
             <span

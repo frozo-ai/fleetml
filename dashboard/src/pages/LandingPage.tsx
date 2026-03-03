@@ -31,7 +31,7 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div className="bg-gray-950 min-h-screen text-white">
+    <main className="bg-gray-950 min-h-screen text-white">
       <Navbar />
       <Hero />
       <LogoCloud />
@@ -47,6 +47,6 @@ export default function LandingPage() {
       <Architecture />
       <OpenSourceCTA />
       <Footer />
-    </div>
+    </main>
   );
 }

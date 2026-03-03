@@ -75,6 +75,65 @@ export default function Comparison() {
           </p>
         </div>
 
+        {/* Structured comparison table — extractable by AI search */}
+        <div className="scroll-reveal glass overflow-hidden mb-10">
+          <table className="w-full text-sm text-left">
+            <thead>
+              <tr className="border-b border-white/10">
+                <th className="px-5 py-3 text-gray-500 font-medium">Capability</th>
+                <th className="px-5 py-3 text-white font-semibold">FleetML</th>
+                <th className="px-5 py-3 text-gray-400 font-medium">Greengrass</th>
+                <th className="px-5 py-3 text-gray-400 font-medium">Balena</th>
+                <th className="px-5 py-3 text-gray-400 font-medium">MLflow</th>
+              </tr>
+            </thead>
+            <tbody className="text-gray-400">
+              <tr className="border-b border-white/5">
+                <td className="px-5 py-3 text-gray-300">Edge deployment</td>
+                <td className="px-5 py-3 text-green-400">Yes</td>
+                <td className="px-5 py-3 text-green-400">Yes</td>
+                <td className="px-5 py-3 text-green-400">Yes</td>
+                <td className="px-5 py-3 text-red-400">No</td>
+              </tr>
+              <tr className="border-b border-white/5">
+                <td className="px-5 py-3 text-gray-300">Chip-neutral</td>
+                <td className="px-5 py-3 text-green-400">Yes</td>
+                <td className="px-5 py-3 text-red-400">AWS only</td>
+                <td className="px-5 py-3 text-yellow-400">Partial</td>
+                <td className="px-5 py-3 text-gray-600">N/A</td>
+              </tr>
+              <tr className="border-b border-white/5">
+                <td className="px-5 py-3 text-gray-300">ML-aware canary</td>
+                <td className="px-5 py-3 text-green-400">Yes</td>
+                <td className="px-5 py-3 text-red-400">No</td>
+                <td className="px-5 py-3 text-red-400">No</td>
+                <td className="px-5 py-3 text-red-400">No</td>
+              </tr>
+              <tr className="border-b border-white/5">
+                <td className="px-5 py-3 text-gray-300">Zero-downtime hot-swap</td>
+                <td className="px-5 py-3 text-green-400">Yes</td>
+                <td className="px-5 py-3 text-red-400">No</td>
+                <td className="px-5 py-3 text-red-400">No</td>
+                <td className="px-5 py-3 text-red-400">No</td>
+              </tr>
+              <tr className="border-b border-white/5">
+                <td className="px-5 py-3 text-gray-300">Offline-first</td>
+                <td className="px-5 py-3 text-green-400">Yes</td>
+                <td className="px-5 py-3 text-yellow-400">Partial</td>
+                <td className="px-5 py-3 text-yellow-400">Partial</td>
+                <td className="px-5 py-3 text-red-400">No</td>
+              </tr>
+              <tr>
+                <td className="px-5 py-3 text-gray-300">Open source</td>
+                <td className="px-5 py-3 text-green-400">Apache 2.0</td>
+                <td className="px-5 py-3 text-red-400">No</td>
+                <td className="px-5 py-3 text-yellow-400">Partial</td>
+                <td className="px-5 py-3 text-green-400">Yes</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
         <div className="space-y-3">
           {comparisons.map((item, i) => (
             <AccordionItem

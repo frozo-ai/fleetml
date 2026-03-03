@@ -2,17 +2,132 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="FleetML is an open-source, chip-neutral edge MLOps platform. Deploy, update, and monitor ML models across heterogeneous edge device fleets." />
-    <meta property="og:title" content="FleetML — Edge MLOps Platform" />
-    <meta property="og:description" content="Deploy ML models to edge devices at scale. Chip-neutral, offline-first, zero-downtime." />
+    <title>FleetML — Deploy ML Models to Edge Devices at Scale | Open-Source Edge MLOps</title>
+    <meta name="description" content="FleetML is an open-source, chip-neutral edge MLOps platform. Deploy, update, and monitor ML models across heterogeneous edge device fleets with one command." />
+    <link rel="canonical" href="https://fleetml.io/" />
+    <meta name="theme-color" content="#0a0a0f" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="FleetML — Deploy ML Models to Edge Devices at Scale" />
+    <meta property="og:description" content="Open-source, chip-neutral edge MLOps. Deploy ML models to your entire fleet with one command. Canary rollouts, zero-downtime hot-swap, offline-first." />
     <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://fleetml.io/" />
+    <meta property="og:image" content="https://fleetml.io/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:site_name" content="FleetML" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="FleetML — Deploy ML Models to Edge Devices at Scale" />
+    <meta name="twitter:description" content="Open-source, chip-neutral edge MLOps. Deploy ML models to your entire fleet with one command." />
+    <meta name="twitter:image" content="https://fleetml.io/og-image.png" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <title>FleetML — Edge MLOps Platform</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" />
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "FleetML",
+      "description": "Open-source, chip-neutral edge MLOps platform. Deploy, update, and monitor ML models across heterogeneous edge device fleets.",
+      "url": "https://fleetml.io",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "Linux",
+      "license": "https://opensource.org/licenses/Apache-2.0",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "author": {
+        "@type": "Organization",
+        "name": "FleetML Contributors",
+        "url": "https://github.com/fleetml/fleetml"
+      }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Can't I just use AWS Greengrass?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Greengrass locks you into AWS, isn't ML-focused, and requires deep AWS expertise. FleetML is chip-neutral, ML-first, and works with any infrastructure."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can I build edge ML deployment with SSH scripts?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Custom scripts work for 5 devices. At 50+, you need canary rollouts, rollback, offline handling, and multi-chip compilation. That's 6-12 weeks of engineering FleetML gives you on day one."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What about Balena or Mender for edge ML?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Great for OS and container updates. But they don't understand ML models — no model-aware canary, no inference metrics, no hot-swap, no ONNX compilation."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does MLflow handle edge ML deployment?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "MLflow stops at the cloud boundary. It packages your model but doesn't deploy it to physical edge hardware, handle offline operation, or manage device fleets."
+          }
+        }
+      ]
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "HowTo",
+      "name": "How to deploy an ML model to edge devices with FleetML",
+      "description": "Deploy your first ML model to an edge device in under 5 minutes using FleetML's CLI, then scale to your entire fleet.",
+      "totalTime": "PT5M",
+      "step": [
+        {
+          "@type": "HowToStep",
+          "position": 1,
+          "name": "Install the FleetML CLI",
+          "text": "Install the FleetML command-line tool by running: curl -sSL https://get.fleetml.io | sh"
+        },
+        {
+          "@type": "HowToStep",
+          "position": 2,
+          "name": "Deploy your first model",
+          "text": "Deploy an ONNX model to a local device by running: fleetml deploy model.onnx --device local"
+        },
+        {
+          "@type": "HowToStep",
+          "position": 3,
+          "name": "Scale to your fleet",
+          "text": "Deploy the same model to your entire production fleet by running: fleetml deploy model.onnx --fleet production"
+        }
+      ]
+    }
+    </script>
   </head>
   <body>
+    <noscript><style>.scroll-reveal{opacity:1!important;transform:none!important}</style></noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

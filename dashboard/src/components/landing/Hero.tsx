@@ -117,9 +117,16 @@ export default function Hero() {
         </h1>
 
         {/* Subtitle — benefit-led */}
-        <p className="text-lg sm:text-xl text-gray-400 max-w-2xl mx-auto mb-10 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
+        <p className="text-lg sm:text-xl text-gray-400 max-w-2xl mx-auto mb-6 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
           One command deploys to your entire fleet &mdash; Jetson, Raspberry Pi, Intel, Coral, any chip.
           Canary rollouts, zero-downtime hot-swap, offline-first. Open source.
+        </p>
+
+        {/* Definition block — extractable by AI search engines */}
+        <p className="text-sm text-gray-500 max-w-2xl mx-auto mb-10 animate-fade-in-up" style={{ animationDelay: '0.25s' }}>
+          FleetML is an open-source, chip-neutral edge MLOps platform that deploys, updates, and monitors ML models across
+          heterogeneous edge device fleets. It compiles one ONNX model for every chip type automatically, handles canary
+          rollouts with auto-rollback, and operates offline-first so devices keep running without connectivity.
         </p>
 
         {/* CTAs */}

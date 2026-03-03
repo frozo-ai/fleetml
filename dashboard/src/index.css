@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -73,3 +71,11 @@ html {
 .code-comment { color: #6b7280; }
 .code-flag { color: #60a5fa; }
 .code-value { color: #fbbf24; }
+
+/* Ensure content is visible for crawlers / no-JS environments */
+@media (scripting: none) {
+  .scroll-reveal {
+    opacity: 1;
+    transform: none;
+  }
+}

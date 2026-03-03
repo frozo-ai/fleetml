@@ -1,0 +1,28 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard/
+
+# AI Search Crawlers — allow indexing for search/chat
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+# Block AI training crawlers (keep search visibility)
+User-agent: GPTBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+Sitemap: https://fleetml.io/sitemap.xml

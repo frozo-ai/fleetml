@@ -31,9 +31,14 @@ export default function Footer() {
             ))}
           </div>
 
-          <p className="text-gray-700 text-xs">
-            &copy; {new Date().getFullYear()} FleetML Contributors
-          </p>
+          <div className="text-center sm:text-right">
+            <p className="text-gray-700 text-xs">
+              &copy; {new Date().getFullYear()} FleetML Contributors
+            </p>
+            <p className="text-gray-800 text-[10px] mt-1">
+              Last updated March 2026
+            </p>
+          </div>
         </div>
       </div>
     </footer>

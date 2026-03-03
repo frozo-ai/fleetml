@@ -43,7 +43,9 @@ export default function OpenSourceCTA() {
               Star on GitHub
             </a>
             <a
-              href="#"
+              href="https://github.com/fleetml/fleetml#readme"
+              target="_blank"
+              rel="noopener noreferrer"
               className="btn-outline text-base"
             >
               Read the Docs
