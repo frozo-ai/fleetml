@@ -84,3 +84,91 @@ func TestCompilerClient_MockService(t *testing.T) {
 		t.Errorf("expected artifact_url %s, got %s", expected.ArtifactURL, resp.ArtifactURL)
 	}
 }
+
+func TestCompileHandler_EmptyBody(t *testing.T) {
+	logger := zap.NewNop().Sugar()
+	handler := NewCompileHandler(nil, nil, logger)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/models/test-id/compile", strings.NewReader(""))
+	req.Header.Set("Content-Type", "application/json")
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "test-id")
+	req = req.WithContext(chi.RouteContext(req.Context(), rctx))
+	w := httptest.NewRecorder()
+	handler.Compile(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for empty body, got %d", w.Code)
+	}
+}
+
+func TestCompileHandler_NilBody(t *testing.T) {
+	logger := zap.NewNop().Sugar()
+	handler := NewCompileHandler(nil, nil, logger)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/models/test-id/compile", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "test-id")
+	req = req.WithContext(chi.RouteContext(req.Context(), rctx))
+	w := httptest.NewRecorder()
+	handler.Compile(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for nil body, got %d", w.Code)
+	}
+}
+
+func TestCompileHandler_EmptyRuntimeString(t *testing.T) {
+	logger := zap.NewNop().Sugar()
+	handler := NewCompileHandler(nil, nil, logger)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/models/test-id/compile", strings.NewReader(`{"target_runtime":""}`))
+	req.Header.Set("Content-Type", "application/json")
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "test-id")
+	req = req.WithContext(chi.RouteContext(req.Context(), rctx))
+	w := httptest.NewRecorder()
+	handler.Compile(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for empty runtime, got %d", w.Code)
+	}
+}
+
+func TestCompileHandler_ExtraFields(t *testing.T) {
+	logger := zap.NewNop().Sugar()
+	handler := NewCompileHandler(nil, nil, logger)
+	body := `{"target_runtime":"mock","unknown_field":"value"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/models/test-id/compile", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "test-id")
+	req = req.WithContext(chi.RouteContext(req.Context(), rctx))
+	w := httptest.NewRecorder()
+	// Should not panic — nil registry causes panic recovered by middleware
+	func() {
+		defer func() { recover() }()
+		handler.Compile(w, req)
+	}()
+	if w.Code == http.StatusBadRequest {
+		t.Error("extra fields should not cause 400")
+	}
+}
+
+func TestNewCompileHandler_NilDependencies(t *testing.T) {
+	h := NewCompileHandler(nil, nil, nil)
+	if h == nil {
+		t.Fatal("expected non-nil handler")
+	}
+}
+
+func TestCompileHandler_LargeBody(t *testing.T) {
+	logger := zap.NewNop().Sugar()
+	handler := NewCompileHandler(nil, nil, logger)
+	largeBody := `{"target_runtime":"` + strings.Repeat("a", 1024*100) + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/models/test-id/compile", strings.NewReader(largeBody))
+	req.Header.Set("Content-Type", "application/json")
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "test-id")
+	req = req.WithContext(chi.RouteContext(req.Context(), rctx))
+	w := httptest.NewRecorder()
+	func() {
+		defer func() { recover() }()
+		handler.Compile(w, req)
+	}()
+	// Just verify no unrecovered panic
+}

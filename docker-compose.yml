@@ -18,11 +18,14 @@ services:
       - S3_BUCKET=fleetml-models
       - JWT_SECRET=${JWT_SECRET}
       - COMPILER_URL=http://compiler:8081
+      - NATS_URL=nats://nats:4222
       - LOG_LEVEL=info
     depends_on:
       db:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      nats:
         condition: service_healthy
       compiler:
         condition: service_healthy
@@ -106,6 +109,25 @@ services:
         limits:
           memory: 256M
 
+  nats:
+    image: nats:2.10-alpine
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    command: ["--jetstream", "--store_dir", "/data", "--http_port", "8222"]
+    volumes:
+      - natsdata:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
   minio:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
@@ -129,6 +151,22 @@ services:
         limits:
           memory: 256M
 
+  # Optional: Jaeger for distributed tracing
+  # Uncomment to enable local trace collection and visualization
+  # jaeger:
+  #   image: jaegertracing/all-in-one:1.54
+  #   ports:
+  #     - "16686:16686"   # Jaeger UI
+  #     - "4318:4318"     # OTLP HTTP receiver
+  #   environment:
+  #     - COLLECTOR_OTLP_ENABLED=true
+  #   restart: unless-stopped
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 256M
+
 volumes:
   pgdata:
   miniodata:
+  natsdata:

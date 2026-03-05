@@ -111,6 +111,45 @@ type User struct {
 	UpdatedAt    time.Time `json:"updated_at"`
 }
 
+// ABTest represents an A/B test between two model variants.
+type ABTest struct {
+	ID            string                 `json:"id"`
+	Name          string                 `json:"name"`
+	ModelAID      string                 `json:"model_a_id"`
+	ModelBID      string                 `json:"model_b_id"`
+	SplitA        int                    `json:"split_a"`
+	SplitB        int                    `json:"split_b"`
+	TargetFleetID *string                `json:"target_fleet_id,omitempty"`
+	TargetLabels  map[string]string      `json:"target_labels,omitempty"`
+	Metric        string                 `json:"metric"`
+	Duration      *string                `json:"duration,omitempty"`
+	AutoPromote   bool                   `json:"auto_promote"`
+	State         string                 `json:"state"` // pending, running, completed, stopped
+	Winner        *string                `json:"winner,omitempty"`
+	ModelAMetrics map[string]interface{} `json:"model_a_metrics,omitempty"`
+	ModelBMetrics map[string]interface{} `json:"model_b_metrics,omitempty"`
+	StartedAt     *time.Time             `json:"started_at,omitempty"`
+	StoppedAt     *time.Time             `json:"stopped_at,omitempty"`
+	CreatedAt     time.Time              `json:"created_at"`
+	CreatedBy     *string                `json:"created_by,omitempty"`
+}
+
+// Policy defines a deployment or operational policy.
+type Policy struct {
+	ID            string                 `json:"id"`
+	Name          string                 `json:"name"`
+	Description   string                 `json:"description"`
+	PolicyType    string                 `json:"policy_type"` // deployment, scaling, alerting, compliance
+	Rules         map[string]interface{} `json:"rules"`
+	Enabled       bool                   `json:"enabled"`
+	Priority      int                    `json:"priority"`
+	TargetFleetID *string                `json:"target_fleet_id,omitempty"`
+	TargetLabels  map[string]string      `json:"target_labels,omitempty"`
+	CreatedAt     time.Time              `json:"created_at"`
+	UpdatedAt     time.Time              `json:"updated_at"`
+	CreatedBy     *string                `json:"created_by,omitempty"`
+}
+
 // DeviceFilter provides filter criteria for listing devices.
 type DeviceFilter struct {
 	Status  string

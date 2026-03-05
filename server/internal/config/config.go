@@ -15,7 +15,10 @@ type Config struct {
 	Heartbeat HeartbeatConfig `yaml:"heartbeat"`
 	Deploy    DeployConfig    `yaml:"deployment"`
 	Compiler  CompilerConfig  `yaml:"compiler"`
-	Logging   LoggingConfig   `yaml:"logging"`
+	NATS      NATSConfig      `yaml:"nats"`
+	Tracing      TracingConfig      `yaml:"tracing"`
+	Integrations IntegrationsConfig `yaml:"integrations"`
+	Logging      LoggingConfig      `yaml:"logging"`
 }
 
 type ServerConfig struct {
@@ -63,6 +66,21 @@ type CompilerConfig struct {
 	URL string `yaml:"url"`
 }
 
+type NATSConfig struct {
+	URL string `yaml:"url"`
+}
+
+type IntegrationsConfig struct {
+	MLflowURL string `yaml:"mlflow_url"`
+	HFToken   string `yaml:"hf_token"`
+}
+
+type TracingConfig struct {
+	Enabled    bool    `yaml:"enabled"`
+	Endpoint   string  `yaml:"endpoint"`
+	SampleRate float64 `yaml:"sample_rate"`
+}
+
 type LoggingConfig struct {
 	Level string `yaml:"level"`
 }
@@ -98,6 +116,14 @@ func DefaultConfig() *Config {
 		},
 		Compiler: CompilerConfig{
 			URL: "",
+		},
+		NATS: NATSConfig{
+			URL: "",
+		},
+		Tracing: TracingConfig{
+			Enabled:    false,
+			Endpoint:   "localhost:4318",
+			SampleRate: 1.0,
 		},
 		Logging: LoggingConfig{
 			Level: "info",
@@ -139,6 +165,19 @@ func Load(path string) (*Config, error) {
 	}
 	if v := os.Getenv("COMPILER_URL"); v != "" {
 		cfg.Compiler.URL = v
+	}
+	if v := os.Getenv("NATS_URL"); v != "" {
+		cfg.NATS.URL = v
+	}
+	if v := os.Getenv("MLFLOW_TRACKING_URI"); v != "" {
+		cfg.Integrations.MLflowURL = v
+	}
+	if v := os.Getenv("HF_TOKEN"); v != "" {
+		cfg.Integrations.HFToken = v
+	}
+	if v := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"); v != "" {
+		cfg.Tracing.Endpoint = v
+		cfg.Tracing.Enabled = true
 	}
 
 	return cfg, nil

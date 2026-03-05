@@ -23,5 +23,5 @@ class MockCompiler(BaseCompiler):
     def validate(self, model_path: str) -> bool:
         return os.path.isfile(model_path)
 
-    def supported_formats(self) -> list[str]:
+    def supported_formats(self):
         return ["onnx"]

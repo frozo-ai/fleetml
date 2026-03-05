@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/fleetml/fleetml/server/internal/domain"
 	"github.com/fleetml/fleetml/server/internal/fleet"
+	mw "github.com/fleetml/fleetml/server/internal/middleware"
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 )
@@ -113,4 +115,78 @@ func (h *FleetHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// Stats returns aggregated statistics for a fleet.
+func (h *FleetHandler) Stats(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if !mw.IsValidUUID(id) {
+		mw.WriteBadRequest(w, "invalid fleet ID format")
+		return
+	}
+
+	stats, err := h.fleet.GetFleetStats(r.Context(), id)
+	if err != nil {
+		h.logger.Errorw("failed to get fleet stats", "fleet_id", id, "error", err)
+		mw.WriteInternalError(w, "failed to get fleet stats")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(stats)
+}
+
+// ListDevices returns all devices in a fleet.
+func (h *FleetHandler) ListDevices(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if !mw.IsValidUUID(id) {
+		mw.WriteBadRequest(w, "invalid fleet ID format")
+		return
+	}
+
+	devices, total, err := h.fleet.ListDevices(r.Context(), domain.DeviceFilter{FleetID: id, Limit: 1000})
+	if err != nil {
+		h.logger.Errorw("failed to list fleet devices", "fleet_id", id, "error", err)
+		mw.WriteInternalError(w, "failed to list fleet devices")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"devices": devices,
+		"total":   total,
+	})
+}
+
+// BulkAssign assigns devices matching labels to this fleet.
+func (h *FleetHandler) BulkAssign(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if !mw.IsValidUUID(id) {
+		mw.WriteBadRequest(w, "invalid fleet ID format")
+		return
+	}
+
+	var req struct {
+		Labels map[string]string `json:"labels"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		mw.WriteBadRequest(w, "invalid request body")
+		return
+	}
+	if len(req.Labels) == 0 {
+		mw.WriteBadRequest(w, "labels are required for bulk assignment")
+		return
+	}
+
+	count, err := h.fleet.BulkAssignByLabels(r.Context(), id, req.Labels)
+	if err != nil {
+		h.logger.Errorw("failed to bulk assign devices", "fleet_id", id, "error", err)
+		mw.WriteInternalError(w, "failed to bulk assign devices")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"assigned": count,
+	})
 }

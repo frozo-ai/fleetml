@@ -1,6 +1,8 @@
 package model
 
 import (
+	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -133,5 +135,159 @@ func TestHotSwap_HasRollbackInitially(t *testing.T) {
 	hs := NewHotSwapper()
 	if hs.HasRollback() {
 		t.Fatal("expected no rollback initially")
+	}
+}
+
+func TestHotSwapper_Active_BeforeAnySwap(t *testing.T) {
+	hs := NewHotSwapper()
+
+	active := hs.Active()
+	if active != nil {
+		t.Fatalf("expected Active() to return nil before any swap, got %+v", active)
+	}
+}
+
+func TestHotSwapper_Rollback_NoRollbackAvailable(t *testing.T) {
+	hs := NewHotSwapper()
+
+	// Verify HasRollback is false
+	if hs.HasRollback() {
+		t.Fatal("expected HasRollback() = false on fresh swapper")
+	}
+
+	// Rollback should return an error
+	err := hs.Rollback()
+	if err == nil {
+		t.Fatal("expected error when calling Rollback() with no rollback available")
+	}
+	if !strings.Contains(err.Error(), "no rollback model available") {
+		t.Fatalf("expected 'no rollback model available' error, got: %v", err)
+	}
+}
+
+func TestHotSwapper_Rollback_Chain(t *testing.T) {
+	hs := NewHotSwapper()
+
+	vA := &LoadedModel{Model: &Model{Name: "model", Version: "A"}}
+	vB := &LoadedModel{Model: &Model{Name: "model", Version: "B"}}
+
+	// Swap A in (no rollback yet, since there was no previous model)
+	hs.Swap(vA)
+	if hs.HasRollback() {
+		t.Fatal("expected no rollback after first swap (nil was previous)")
+	}
+
+	// Swap B in (A becomes rollback target)
+	hs.Swap(vB)
+	if !hs.HasRollback() {
+		t.Fatal("expected rollback to be available after second swap")
+	}
+
+	// Verify active is B
+	active := hs.Active()
+	if active.Model.Version != "B" {
+		t.Fatalf("expected active version B, got %s", active.Model.Version)
+	}
+
+	// Rollback to A
+	if err := hs.Rollback(); err != nil {
+		t.Fatalf("Rollback() failed: %v", err)
+	}
+
+	active = hs.Active()
+	if active.Model.Version != "A" {
+		t.Fatalf("expected active version A after rollback, got %s", active.Model.Version)
+	}
+
+	// After rollback, the Rollback function stores the current (B) as rollback.
+	// So HasRollback should still be true (B is now the rollback target).
+	if !hs.HasRollback() {
+		t.Fatal("expected HasRollback() = true after rollback (B should be stored)")
+	}
+
+	// Rollback again should go back to B
+	if err := hs.Rollback(); err != nil {
+		t.Fatalf("second Rollback() failed: %v", err)
+	}
+	active = hs.Active()
+	if active.Model.Version != "B" {
+		t.Fatalf("expected active version B after second rollback, got %s", active.Model.Version)
+	}
+}
+
+func TestHotSwapper_Swap_NilModel(t *testing.T) {
+	hs := NewHotSwapper()
+
+	err := hs.Swap(nil)
+	if err == nil {
+		t.Fatal("expected error when swapping nil model")
+	}
+	if !strings.Contains(err.Error(), "cannot swap to nil model") {
+		t.Fatalf("expected 'cannot swap to nil model' error, got: %v", err)
+	}
+
+	// Active should still be nil (nothing was swapped)
+	if hs.Active() != nil {
+		t.Fatal("expected Active() to remain nil after failed nil swap")
+	}
+}
+
+// mockRuntime implements Runtime for testing BackgroundSwap.
+type mockRuntime struct {
+	name     string
+	unloaded bool
+}
+
+func (m *mockRuntime) Name() string              { return m.name }
+func (m *mockRuntime) Load(path string) error     { return nil }
+func (m *mockRuntime) Infer(input []byte) ([]byte, error) { return input, nil }
+func (m *mockRuntime) Unload() error              { m.unloaded = true; return nil }
+func (m *mockRuntime) IsSupported() bool          { return true }
+
+func TestHotSwapper_BackgroundSwap_LoadFnError(t *testing.T) {
+	hs := NewHotSwapper()
+
+	// Set an initial active model so we can verify state is unchanged after failure
+	initial := &LoadedModel{Model: &Model{Name: "model", Version: "1.0"}}
+	hs.Swap(initial)
+
+	doneCh := make(chan error, 1)
+
+	loadFn := func() (*LoadedModel, error) {
+		return nil, fmt.Errorf("download failed: network timeout")
+	}
+
+	verifyFn := func(m *LoadedModel) error {
+		t.Fatal("verifyFn should not be called when loadFn fails")
+		return nil
+	}
+
+	hs.BackgroundSwap("model:2.0", loadFn, verifyFn, doneCh)
+
+	select {
+	case err := <-doneCh:
+		if err == nil {
+			t.Fatal("expected error from BackgroundSwap when loadFn fails")
+		}
+		if !strings.Contains(err.Error(), "background load failed") {
+			t.Fatalf("expected 'background load failed' in error, got: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for BackgroundSwap to complete")
+	}
+
+	// Active model should still be the initial one
+	active := hs.Active()
+	if active == nil {
+		t.Fatal("expected active model to remain after failed background swap")
+	}
+	if active.Model.Version != "1.0" {
+		t.Fatalf("expected active version 1.0 to remain, got %s", active.Model.Version)
+	}
+
+	// Progress should show SwapFailed
+	progress := hs.Progress()
+	if progress.State != SwapFailed {
+		t.Fatalf("expected SwapFailed state, got %d", progress.State)
 	}
 }

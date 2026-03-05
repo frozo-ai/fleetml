@@ -6,6 +6,7 @@ import (
 
 	"github.com/fleetml/fleetml/server/internal/compiler"
 	"github.com/fleetml/fleetml/server/internal/domain"
+	mw "github.com/fleetml/fleetml/server/internal/middleware"
 	"github.com/fleetml/fleetml/server/internal/model"
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
@@ -39,24 +40,24 @@ func (h *CompileHandler) Compile(w http.ResponseWriter, r *http.Request) {
 	// 1. Parse request body
 	var req compileRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+		mw.WriteBadRequest(w, "invalid request body")
 		return
 	}
 
 	if req.TargetRuntime == "" {
-		http.Error(w, `{"error":"target_runtime is required"}`, http.StatusBadRequest)
+		mw.WriteBadRequest(w, "target_runtime is required")
 		return
 	}
 
 	// 2. Get model from registry (verify it exists and is ONNX)
 	m, err := h.registry.GetModelByID(r.Context(), modelID)
 	if err != nil {
-		http.Error(w, `{"error":"model not found"}`, http.StatusNotFound)
+		mw.WriteNotFound(w, "model not found")
 		return
 	}
 
 	if m.Format != "onnx" {
-		http.Error(w, `{"error":"only ONNX models can be compiled"}`, http.StatusBadRequest)
+		mw.WriteBadRequest(w, "only ONNX models can be compiled")
 		return
 	}
 
@@ -69,7 +70,7 @@ func (h *CompileHandler) Compile(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		h.logger.Errorw("compilation failed", "model_id", modelID, "runtime", req.TargetRuntime, "error", err)
-		http.Error(w, `{"error":"compilation failed: `+err.Error()+`"}`, http.StatusInternalServerError)
+		mw.WriteInternalError(w, "compilation failed: "+err.Error())
 		return
 	}
 
@@ -82,7 +83,7 @@ func (h *CompileHandler) Compile(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.registry.AddCompiledVariant(r.Context(), modelID, variant); err != nil {
 		h.logger.Errorw("failed to store compiled variant", "model_id", modelID, "error", err)
-		http.Error(w, `{"error":"failed to store compiled variant"}`, http.StatusInternalServerError)
+		mw.WriteInternalError(w, "failed to store compiled variant")
 		return
 	}
 

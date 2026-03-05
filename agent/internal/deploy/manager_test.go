@@ -213,3 +213,46 @@ func TestHandleCommand_ModelNotAvailable(t *testing.T) {
 		t.Error("expected failed status report when model not available")
 	}
 }
+
+func TestHandleCommand_EmptyPayload(t *testing.T) {
+	mgr, _ := newTestManager(t)
+	cmd := communication.Command{
+		ID:      "cmd-empty",
+		Type:    "deploy_model",
+		Payload: []byte(""),
+	}
+	// Should not panic — empty payload fails JSON unmarshal
+	mgr.HandleCommand(context.Background(), cmd)
+}
+
+func TestHandleCommand_NilPayload(t *testing.T) {
+	mgr, _ := newTestManager(t)
+	cmd := communication.Command{
+		ID:      "cmd-nil",
+		Type:    "deploy_model",
+		Payload: nil,
+	}
+	// Should not panic — nil payload fails JSON unmarshal
+	mgr.HandleCommand(context.Background(), cmd)
+}
+
+func TestHandleCommand_RollbackWithEmptyPayload(t *testing.T) {
+	mgr, _ := newTestManager(t)
+	cmd := communication.Command{
+		ID:      "cmd-rb-empty",
+		Type:    "rollback",
+		Payload: []byte(""),
+	}
+	mgr.HandleCommand(context.Background(), cmd)
+}
+
+func TestHandleCommand_EmptyCommandType(t *testing.T) {
+	mgr, _ := newTestManager(t)
+	cmd := communication.Command{
+		ID:      "cmd-1",
+		Type:    "",
+		Payload: []byte("{}"),
+	}
+	// Empty type hits default case — should not panic
+	mgr.HandleCommand(context.Background(), cmd)
+}

@@ -37,6 +37,16 @@ export const api = {
     return request<{ devices: Device[]; total: number }>(`/api/v1/devices?${query}`);
   },
   getDevice: (id: string) => request<Device>(`/api/v1/devices/${id}`),
+  getDeviceLogs: (id: string, params?: { limit?: number; level?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.level) query.set('level', params.level);
+    return request<{ logs: DeviceLog[] }>(`/api/v1/devices/${id}/logs?${query}`);
+  },
+  updateDevice: (id: string, data: { labels?: Record<string, string>; fleet_id?: string }) =>
+    request<Device>(`/api/v1/devices/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteDevice: (id: string) =>
+    request<void>(`/api/v1/devices/${id}`, { method: 'DELETE' }),
 
   // Models
   listModels: () => request<{ models: Model[]; total: number }>('/api/v1/models'),
@@ -53,6 +63,47 @@ export const api = {
 
   // Fleets
   listFleets: () => request<{ fleets: Fleet[] }>('/api/v1/fleets'),
+  getFleetStats: (id: string) => request<FleetStats>(`/api/v1/fleets/${id}/stats`),
+
+  // A/B Tests
+  listABTests: (state?: string) => {
+    const query = state ? `?state=${state}` : '';
+    return request<{ ab_tests: ABTest[]; total: number }>(`/api/v1/ab-tests${query}`);
+  },
+  getABTest: (id: string) => request<ABTest>(`/api/v1/ab-tests/${id}`),
+  createABTest: (data: CreateABTestRequest) =>
+    request<ABTest>('/api/v1/ab-tests', { method: 'POST', body: JSON.stringify(data) }),
+  stopABTest: (id: string, winner?: string) =>
+    request<ABTest>(`/api/v1/ab-tests/${id}/stop`, {
+      method: 'POST',
+      body: JSON.stringify({ winner: winner || '' }),
+    }),
+
+  // Policies
+  listPolicies: (type?: string) => {
+    const query = type ? `?type=${type}` : '';
+    return request<{ policies: Policy[]; total: number }>(`/api/v1/policies${query}`);
+  },
+  getPolicy: (id: string) => request<Policy>(`/api/v1/policies/${id}`),
+  createPolicy: (data: CreatePolicyRequest) =>
+    request<Policy>('/api/v1/policies', { method: 'POST', body: JSON.stringify(data) }),
+  updatePolicy: (id: string, data: Partial<CreatePolicyRequest>) =>
+    request<Policy>(`/api/v1/policies/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deletePolicy: (id: string) =>
+    request<void>(`/api/v1/policies/${id}`, { method: 'DELETE' }),
+
+  // Drift Detection
+  listDriftReports: (params?: { model_id?: string; drift_only?: string }) => {
+    const query = new URLSearchParams(params as Record<string, string>).toString();
+    return request<{ reports: DriftReport[] }>(`/api/v1/drift/reports?${query}`);
+  },
+
+  // Compile
+  compileModel: (modelId: string, targetRuntime: string, options?: Record<string, unknown>) =>
+    request<CompileResult>(`/api/v1/models/${modelId}/compile`, {
+      method: 'POST',
+      body: JSON.stringify({ target_runtime: targetRuntime, options: options || {} }),
+    }),
 };
 
 export interface Device {
@@ -113,4 +164,99 @@ export interface CreateDeploymentRequest {
   target_type: string;
   target_id: string;
   policy: string;
+}
+
+export interface ABTest {
+  id: string;
+  name: string;
+  model_a_id: string;
+  model_b_id: string;
+  split_a: number;
+  split_b: number;
+  target_fleet_id?: string;
+  metric: string;
+  duration?: string;
+  auto_promote: boolean;
+  state: string;
+  winner?: string;
+  model_a_metrics?: Record<string, unknown>;
+  model_b_metrics?: Record<string, unknown>;
+  started_at?: string;
+  stopped_at?: string;
+  created_at: string;
+}
+
+export interface CreateABTestRequest {
+  name: string;
+  model_a_id: string;
+  model_b_id: string;
+  split_a: number;
+  split_b: number;
+  target_fleet_id?: string;
+  metric: string;
+  duration?: string;
+  auto_promote: boolean;
+}
+
+export interface Policy {
+  id: string;
+  name: string;
+  description: string;
+  policy_type: string;
+  rules: Record<string, unknown>;
+  enabled: boolean;
+  priority: number;
+  target_fleet_id?: string;
+  target_labels?: Record<string, string>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreatePolicyRequest {
+  name: string;
+  description: string;
+  policy_type: string;
+  rules: Record<string, unknown>;
+  enabled: boolean;
+  priority: number;
+  target_fleet_id?: string;
+  target_labels?: Record<string, string>;
+}
+
+export interface DriftReport {
+  id: string;
+  device_id: string;
+  model_id: string;
+  feature_name: string;
+  psi_score: number;
+  ks_statistic: number;
+  ks_p_value: number;
+  drift_detected: boolean;
+  severity: string;
+  created_at: string;
+}
+
+export interface CompileResult {
+  runtime: string;
+  artifact_url: string;
+  checksum: string;
+  file_size: number;
+  compile_time_seconds: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface FleetStats {
+  total_devices: number;
+  online_devices: number;
+  offline_devices: number;
+  warning_devices: number;
+  runtime_counts: Record<string, number>;
+  arch_counts: Record<string, number>;
+}
+
+export interface DeviceLog {
+  timestamp: string;
+  level: string;
+  message: string;
+  source: string;
 }

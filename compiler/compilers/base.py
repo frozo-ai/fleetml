@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from typing import List
 
 
 @dataclass
@@ -28,6 +29,6 @@ class BaseCompiler(ABC):
         pass
 
     @abstractmethod
-    def supported_formats(self) -> list[str]:
+    def supported_formats(self) -> List[str]:
         """Return supported input formats (e.g. ['onnx'])."""
         pass

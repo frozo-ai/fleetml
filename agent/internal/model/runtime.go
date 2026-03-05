@@ -29,14 +29,16 @@ type LoadedModel struct {
 }
 
 // ONNXRuntime implements the Runtime interface for ONNX models.
-// This is the default runtime for all platforms in MVP.
+// Delegates to ONNXSubprocessRuntime for actual inference via onnx_infer helper.
+// Falls back to pass-through when the helper binary is not available (dev/test mode).
 type ONNXRuntime struct {
-	modelPath string
-	loaded    bool
+	delegate *ONNXSubprocessRuntime
 }
 
 func NewONNXRuntime() *ONNXRuntime {
-	return &ONNXRuntime{}
+	return &ONNXRuntime{
+		delegate: NewONNXSubprocessRuntime(),
+	}
 }
 
 func (r *ONNXRuntime) Name() string {
@@ -44,20 +46,15 @@ func (r *ONNXRuntime) Name() string {
 }
 
 func (r *ONNXRuntime) Load(modelPath string) error {
-	r.modelPath = modelPath
-	r.loaded = true
-	return nil
+	return r.delegate.Load(modelPath)
 }
 
 func (r *ONNXRuntime) Infer(input []byte) ([]byte, error) {
-	// TODO: Implement ONNX Runtime inference via CGO or subprocess
-	return input, nil
+	return r.delegate.Infer(input)
 }
 
 func (r *ONNXRuntime) Unload() error {
-	r.loaded = false
-	r.modelPath = ""
-	return nil
+	return r.delegate.Unload()
 }
 
 func (r *ONNXRuntime) IsSupported() bool {

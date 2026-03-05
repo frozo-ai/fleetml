@@ -325,6 +325,121 @@ func (m *Manager) DeleteFleet(ctx context.Context, id string) error {
 	return nil
 }
 
+// FleetStats holds summary statistics for a fleet.
+type FleetStats struct {
+	TotalDevices   int            `json:"total_devices"`
+	OnlineDevices  int            `json:"online_devices"`
+	OfflineDevices int            `json:"offline_devices"`
+	WarningDevices int            `json:"warning_devices"`
+	RuntimeCounts  map[string]int `json:"runtime_counts"`
+	ArchCounts     map[string]int `json:"arch_counts"`
+}
+
+// GetFleetStats returns aggregated statistics for a fleet.
+func (m *Manager) GetFleetStats(ctx context.Context, fleetID string) (*FleetStats, error) {
+	stats := &FleetStats{
+		RuntimeCounts: map[string]int{},
+		ArchCounts:    map[string]int{},
+	}
+
+	// Status counts
+	rows, err := m.db.Query(ctx,
+		`SELECT status, COUNT(*) FROM devices WHERE fleet_id = $1 GROUP BY status`, fleetID)
+	if err != nil {
+		return nil, fmt.Errorf("fleet stats: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var status string
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, err
+		}
+		stats.TotalDevices += count
+		switch status {
+		case "healthy":
+			stats.OnlineDevices += count
+		case "offline", "decommissioned":
+			stats.OfflineDevices += count
+		case "warning":
+			stats.WarningDevices += count
+		default:
+			stats.OnlineDevices += count // registered counts as online
+		}
+	}
+
+	// Runtime counts
+	rows2, err := m.db.Query(ctx,
+		`SELECT runtime, COUNT(*) FROM devices WHERE fleet_id = $1 AND runtime != '' GROUP BY runtime`, fleetID)
+	if err != nil {
+		return nil, fmt.Errorf("fleet runtime stats: %w", err)
+	}
+	defer rows2.Close()
+
+	for rows2.Next() {
+		var runtime string
+		var count int
+		if err := rows2.Scan(&runtime, &count); err != nil {
+			return nil, err
+		}
+		stats.RuntimeCounts[runtime] = count
+	}
+
+	// Arch counts
+	rows3, err := m.db.Query(ctx,
+		`SELECT arch, COUNT(*) FROM devices WHERE fleet_id = $1 AND arch != '' GROUP BY arch`, fleetID)
+	if err != nil {
+		return nil, fmt.Errorf("fleet arch stats: %w", err)
+	}
+	defer rows3.Close()
+
+	for rows3.Next() {
+		var arch string
+		var count int
+		if err := rows3.Scan(&arch, &count); err != nil {
+			return nil, err
+		}
+		stats.ArchCounts[arch] = count
+	}
+
+	return stats, nil
+}
+
+// UpdateDeviceLabels merges labels onto a device (add/overwrite, not delete).
+func (m *Manager) UpdateDeviceLabels(ctx context.Context, deviceID string, labels map[string]string) error {
+	labelsJSON, _ := json.Marshal(labels)
+	_, err := m.db.Exec(ctx,
+		`UPDATE devices SET labels = COALESCE(labels, '{}'::jsonb) || $2::jsonb, updated_at = NOW()
+		WHERE device_id = $1`, deviceID, labelsJSON)
+	if err != nil {
+		return fmt.Errorf("update device labels: %w", err)
+	}
+	return nil
+}
+
+// BulkAssignByLabels assigns all devices matching label selector to a fleet.
+func (m *Manager) BulkAssignByLabels(ctx context.Context, fleetID string, labels map[string]string) (int, error) {
+	labelsJSON, _ := json.Marshal(labels)
+	tag, err := m.db.Exec(ctx,
+		`UPDATE devices SET fleet_id = $1, updated_at = NOW()
+		WHERE labels @> $2 AND (fleet_id IS NULL OR fleet_id != $1)`, fleetID, labelsJSON)
+	if err != nil {
+		return 0, fmt.Errorf("bulk assign by labels: %w", err)
+	}
+	return int(tag.RowsAffected()), nil
+}
+
+// RemoveDeviceFromFleet removes a device from its fleet.
+func (m *Manager) RemoveDeviceFromFleet(ctx context.Context, deviceID string) error {
+	_, err := m.db.Exec(ctx,
+		`UPDATE devices SET fleet_id = NULL, updated_at = NOW() WHERE device_id = $1`, deviceID)
+	if err != nil {
+		return fmt.Errorf("remove device from fleet: %w", err)
+	}
+	return nil
+}
+
 // GetFleet returns a fleet by ID.
 func (m *Manager) GetFleet(ctx context.Context, id string) (*domain.Fleet, error) {
 	var f domain.Fleet

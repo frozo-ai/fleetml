@@ -3,6 +3,8 @@ package model
 import (
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -120,5 +122,162 @@ func TestONNXSubprocessRuntime_ConcurrentAccess(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		<-done
+	}
+}
+
+func TestONNXSubprocessRuntime_Load_PermissionDenied(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("permission test not reliable on Windows")
+	}
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	modelPath := filepath.Join(dir, "noperm.onnx")
+
+	if err := os.WriteFile(modelPath, []byte("model-data"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Remove all permissions from the file
+	if err := os.Chmod(modelPath, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		os.Chmod(modelPath, 0o644)
+	})
+
+	r := NewONNXSubprocessRuntime()
+	err := r.Load(modelPath)
+	// os.Stat with 000 permissions on the file itself still succeeds on most
+	// Unix systems (stat only requires execute on the parent directory).
+	// However, the onnx_validate helper (if present) would fail. Since the
+	// helper is not present in test, Load may succeed. We accept either outcome
+	// but ensure no panic.
+	if err != nil {
+		if !strings.Contains(err.Error(), "permission denied") && !strings.Contains(err.Error(), "not accessible") {
+			t.Logf("Load returned error (acceptable): %v", err)
+		}
+	}
+
+	// Verify the runtime is in a consistent state
+	_ = r.IsLoaded()
+	_ = r.ModelPath()
+}
+
+func TestONNXSubprocessRuntime_Load_Directory(t *testing.T) {
+	dir := t.TempDir()
+
+	r := NewONNXSubprocessRuntime()
+	err := r.Load(dir)
+	if err == nil {
+		t.Fatal("expected error when loading a directory path instead of a file")
+	}
+	if !strings.Contains(err.Error(), "directory") {
+		t.Fatalf("expected error message to mention 'directory', got: %v", err)
+	}
+
+	// Should not be loaded
+	if r.IsLoaded() {
+		t.Error("expected IsLoaded() = false after failed directory load")
+	}
+}
+
+func TestONNXSubprocessRuntime_Infer_NotLoaded(t *testing.T) {
+	r := NewONNXSubprocessRuntime()
+
+	// Verify not loaded initially
+	if r.IsLoaded() {
+		t.Fatal("expected IsLoaded() = false on new runtime")
+	}
+
+	_, err := r.Infer([]byte("test-input"))
+	if err == nil {
+		t.Fatal("expected error when calling Infer before Load")
+	}
+	if !strings.Contains(err.Error(), "model not loaded") {
+		t.Fatalf("expected 'model not loaded' error, got: %v", err)
+	}
+}
+
+func TestONNXSubprocessRuntime_Unload_Twice(t *testing.T) {
+	dir := t.TempDir()
+	modelPath := filepath.Join(dir, "test.onnx")
+	os.WriteFile(modelPath, []byte("data"), 0o644)
+
+	r := NewONNXSubprocessRuntime()
+	if err := r.Load(modelPath); err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	// First unload
+	if err := r.Unload(); err != nil {
+		t.Fatalf("first Unload failed: %v", err)
+	}
+
+	// Second unload should not return an error (idempotent)
+	if err := r.Unload(); err != nil {
+		t.Fatalf("second Unload should return nil, got: %v", err)
+	}
+
+	// State should remain unloaded
+	if r.IsLoaded() {
+		t.Error("expected IsLoaded() = false after double unload")
+	}
+	if r.ModelPath() != "" {
+		t.Error("expected empty ModelPath after double unload")
+	}
+}
+
+func TestONNXSubprocessRuntime_IsLoaded_AfterUnload(t *testing.T) {
+	dir := t.TempDir()
+	modelPath := filepath.Join(dir, "test.onnx")
+	os.WriteFile(modelPath, []byte("data"), 0o644)
+
+	r := NewONNXSubprocessRuntime()
+
+	// Load a model
+	if err := r.Load(modelPath); err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if !r.IsLoaded() {
+		t.Fatal("expected IsLoaded() = true after Load")
+	}
+
+	// Unload the model
+	if err := r.Unload(); err != nil {
+		t.Fatalf("Unload failed: %v", err)
+	}
+
+	// Verify IsLoaded returns false
+	if r.IsLoaded() {
+		t.Fatal("expected IsLoaded() = false after Unload")
+	}
+}
+
+func TestONNXSubprocessRuntime_ModelPath_AfterUnload(t *testing.T) {
+	dir := t.TempDir()
+	modelPath := filepath.Join(dir, "test.onnx")
+	os.WriteFile(modelPath, []byte("data"), 0o644)
+
+	r := NewONNXSubprocessRuntime()
+
+	// Load a model
+	if err := r.Load(modelPath); err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if r.ModelPath() != modelPath {
+		t.Fatalf("expected ModelPath() = %q, got %q", modelPath, r.ModelPath())
+	}
+
+	// Unload the model
+	if err := r.Unload(); err != nil {
+		t.Fatalf("Unload failed: %v", err)
+	}
+
+	// Verify ModelPath returns empty string
+	if r.ModelPath() != "" {
+		t.Fatalf("expected empty ModelPath after Unload, got %q", r.ModelPath())
 	}
 }

@@ -1,4 +1,5 @@
 import logging
+from typing import Dict, List, Optional
 
 from compiler.compilers.base import BaseCompiler
 
@@ -9,17 +10,17 @@ class CompilerRegistry:
     """Discovers and manages compiler backends."""
 
     def __init__(self):
-        self._compilers: dict[str, BaseCompiler] = {}
+        self._compilers: Dict[str, BaseCompiler] = {}
 
     def register(self, compiler: BaseCompiler) -> None:
         name = compiler.runtime_name()
         self._compilers[name] = compiler
         logger.info("Registered compiler: %s", name)
 
-    def get(self, runtime: str) -> BaseCompiler | None:
+    def get(self, runtime: str) -> Optional[BaseCompiler]:
         return self._compilers.get(runtime)
 
-    def list_available(self) -> list[str]:
+    def list_available(self) -> List[str]:
         return list(self._compilers.keys())
 
     def auto_discover(self) -> None:

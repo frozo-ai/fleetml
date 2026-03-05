@@ -3,11 +3,17 @@ package rest
 import (
 	"net/http"
 
+	"github.com/fleetml/fleetml/server/internal/abtest"
 	"github.com/fleetml/fleetml/server/internal/auth"
 	"github.com/fleetml/fleetml/server/internal/compiler"
 	"github.com/fleetml/fleetml/server/internal/deploy"
+	"github.com/fleetml/fleetml/server/internal/drift"
 	"github.com/fleetml/fleetml/server/internal/fleet"
+	"github.com/fleetml/fleetml/server/internal/integrations"
+	"github.com/fleetml/fleetml/server/internal/policy"
+	mw "github.com/fleetml/fleetml/server/internal/middleware"
 	"github.com/fleetml/fleetml/server/internal/model"
+	"github.com/fleetml/fleetml/server/internal/tracing"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -21,6 +27,10 @@ func NewRouter(
 	registry *model.Registry,
 	orchestrator *deploy.Orchestrator,
 	compilerClient *compiler.Client,
+	abtestMgr *abtest.Manager,
+	driftDetector *drift.Detector,
+	policyEngine *policy.Engine,
+	integrationSvc *integrations.Service,
 	jwtService *auth.JWTService,
 	db *pgxpool.Pool,
 	logger *zap.SugaredLogger,
@@ -32,6 +42,14 @@ func NewRouter(
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Compress(5))
+	r.Use(tracing.HTTPMiddleware)
+	r.Use(mw.SecurityHeaders)
+	r.Use(mw.RequestSizeLimit())
+
+	// Rate limiting — default for all routes
+	apiLimiter := mw.DefaultRateLimiter(logger)
+	r.Use(apiLimiter.Middleware)
+
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"http://localhost:3000", "http://localhost:8080"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
@@ -47,14 +65,22 @@ func NewRouter(
 	modelHandler := NewModelHandler(registry, logger)
 	compileHandler := NewCompileHandler(registry, compilerClient, logger)
 	deviceHandler := NewDeviceHandler(fleetMgr, logger)
+	logsHandler := NewLogsHandler(db, logger)
 	fleetHandler := NewFleetHandler(fleetMgr, logger)
 	deployHandler := NewDeployHandler(orchestrator, logger)
+	abtestHandler := NewABTestHandler(abtestMgr, logger)
+	driftHandler := NewDriftHandler(driftDetector, logger)
+	policyHandler := NewPolicyHandler(policyEngine, logger)
+	integrationHandler := NewIntegrationHandler(integrationSvc, logger)
+
+	// Strict rate limiter for auth endpoints
+	authLimiter := mw.StrictRateLimiter(logger)
 
 	r.Route("/api/v1", func(r chi.Router) {
 		// Public routes
 		r.Get("/health", healthHandler.Health)
-		r.Post("/auth/register", authHandler.Register)
-		r.Post("/auth/login", authHandler.Login)
+		r.With(authLimiter.Middleware).Post("/auth/register", authHandler.Register)
+		r.With(authLimiter.Middleware).Post("/auth/login", authHandler.Login)
 
 		// Authenticated routes
 		r.Group(func(r chi.Router) {
@@ -76,6 +102,7 @@ func NewRouter(
 			r.Route("/devices", func(r chi.Router) {
 				r.With(auth.RequirePermission("devices:read")).Get("/", deviceHandler.List)
 				r.With(auth.RequirePermission("devices:read")).Get("/{device_id}", deviceHandler.Get)
+				r.With(auth.RequirePermission("devices:read")).Get("/{device_id}/logs", logsHandler.GetLogs)
 				r.With(auth.RequirePermission("devices:write")).Patch("/{device_id}", deviceHandler.Update)
 				r.With(auth.RequirePermission("devices:delete")).Delete("/{device_id}", deviceHandler.Delete)
 			})
@@ -87,6 +114,39 @@ func NewRouter(
 				r.With(auth.RequirePermission("fleets:read")).Get("/{id}", fleetHandler.Get)
 				r.With(auth.RequirePermission("fleets:write")).Patch("/{id}", fleetHandler.Update)
 				r.With(auth.RequirePermission("fleets:delete")).Delete("/{id}", fleetHandler.Delete)
+				r.With(auth.RequirePermission("fleets:read")).Get("/{id}/stats", fleetHandler.Stats)
+				r.With(auth.RequirePermission("fleets:read")).Get("/{id}/devices", fleetHandler.ListDevices)
+				r.With(auth.RequirePermission("fleets:write")).Post("/{id}/assign", fleetHandler.BulkAssign)
+			})
+
+			// A/B Tests
+			r.Route("/ab-tests", func(r chi.Router) {
+				r.With(auth.RequirePermission("deployments:read")).Get("/", abtestHandler.List)
+				r.With(auth.RequirePermission("deployments:write")).Post("/", abtestHandler.Create)
+				r.With(auth.RequirePermission("deployments:read")).Get("/{id}", abtestHandler.Get)
+				r.With(auth.RequirePermission("deployments:write")).Post("/{id}/stop", abtestHandler.Stop)
+			})
+
+			// Drift Detection
+			r.Route("/drift", func(r chi.Router) {
+				r.With(auth.RequirePermission("models:write")).Post("/baselines", driftHandler.SetBaseline)
+				r.With(auth.RequirePermission("models:write")).Post("/analyze", driftHandler.Analyze)
+				r.With(auth.RequirePermission("models:read")).Get("/reports", driftHandler.ListReports)
+			})
+
+			// Policies
+			r.Route("/policies", func(r chi.Router) {
+				r.With(auth.RequirePermission("policies:read")).Get("/", policyHandler.List)
+				r.With(auth.RequirePermission("policies:write")).Post("/", policyHandler.Create)
+				r.With(auth.RequirePermission("policies:read")).Get("/{id}", policyHandler.Get)
+				r.With(auth.RequirePermission("policies:write")).Patch("/{id}", policyHandler.Update)
+				r.With(auth.RequirePermission("policies:delete")).Delete("/{id}", policyHandler.Delete)
+			})
+
+			// Integrations (MLflow, HuggingFace)
+			r.Route("/integrations", func(r chi.Router) {
+				r.With(auth.RequirePermission("models:write")).Post("/mlflow/import", integrationHandler.ImportMLflow)
+				r.With(auth.RequirePermission("models:write")).Post("/huggingface/import", integrationHandler.ImportHuggingFace)
 			})
 
 			// Deployments

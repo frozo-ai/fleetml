@@ -48,7 +48,7 @@ export default function DevicesPage() {
               {devices.map((device) => (
                 <tr key={device.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
-                    <Link to={`/devices/${device.device_id}`} className="text-blue-600 hover:underline font-medium">
+                    <Link to={`/dashboard/devices/${device.device_id}`} className="text-blue-600 hover:underline font-medium">
                       {device.device_id}
                     </Link>
                     {device.name && <div className="text-xs text-gray-500">{device.name}</div>}

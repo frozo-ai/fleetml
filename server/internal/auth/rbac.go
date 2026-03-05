@@ -18,6 +18,7 @@ var permissions = map[string]map[string]bool{
 		"devices:read": true, "devices:write": true, "devices:delete": true,
 		"fleets:read": true, "fleets:write": true, "fleets:delete": true,
 		"deployments:read": true, "deployments:write": true, "deployments:cancel": true,
+		"policies:read": true, "policies:write": true, "policies:delete": true,
 		"users:read": true, "users:write": true,
 		"settings:read": true, "settings:write": true,
 	},

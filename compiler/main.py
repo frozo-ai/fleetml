@@ -67,7 +67,12 @@ def compile_model(req: CompileRequest):
 
     with tempfile.TemporaryDirectory() as tmpdir:
         # 1. Download source ONNX from S3
-        input_path = os.path.join(tmpdir, "model.onnx")
+        input_dir = os.path.join(tmpdir, "input")
+        output_dir = os.path.join(tmpdir, "output")
+        os.makedirs(input_dir, exist_ok=True)
+        os.makedirs(output_dir, exist_ok=True)
+
+        input_path = os.path.join(input_dir, "model.onnx")
         try:
             s3.download(req.model_url, input_path)
         except Exception as e:
@@ -79,7 +84,7 @@ def compile_model(req: CompileRequest):
 
         # 3. Compile to target runtime
         ext = _runtime_extension(req.target_runtime)
-        output_path = os.path.join(tmpdir, f"model.{ext}")
+        output_path = os.path.join(output_dir, f"model.{ext}")
 
         start = time.monotonic()
         try:

@@ -74,5 +74,5 @@ class TFLiteCompiler(BaseCompiler):
         except Exception:
             return False
 
-    def supported_formats(self) -> list[str]:
+    def supported_formats(self):
         return ["onnx"]

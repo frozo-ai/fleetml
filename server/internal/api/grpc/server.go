@@ -6,7 +6,9 @@ import (
 
 	"github.com/fleetml/fleetml/server/internal/deploy"
 	"github.com/fleetml/fleetml/server/internal/fleet"
+	servermodel "github.com/fleetml/fleetml/server/internal/model"
 	"github.com/fleetml/fleetml/server/internal/monitor"
+	"github.com/fleetml/fleetml/server/internal/storage"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -20,7 +22,7 @@ type Server struct {
 }
 
 // NewServer creates a new gRPC server.
-func NewServer(fleetMgr *fleet.Manager, orchestrator *deploy.Orchestrator, metrics *monitor.MetricsProcessor, logger *zap.SugaredLogger, port int) *Server {
+func NewServer(fleetMgr *fleet.Manager, orchestrator *deploy.Orchestrator, registry *servermodel.Registry, store storage.ObjectStore, metrics *monitor.MetricsProcessor, logger *zap.SugaredLogger, port int) *Server {
 	s := &Server{
 		server: grpc.NewServer(),
 		fleet:  fleetMgr,
@@ -28,7 +30,7 @@ func NewServer(fleetMgr *fleet.Manager, orchestrator *deploy.Orchestrator, metri
 		port:   port,
 	}
 
-	handler := NewHandler(fleetMgr, orchestrator, metrics, logger)
+	handler := NewHandler(fleetMgr, orchestrator, registry, store, metrics, logger)
 	handler.RegisterService(s.server)
 
 	return s

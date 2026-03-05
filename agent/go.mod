@@ -1,6 +1,6 @@
 module github.com/fleetml/fleetml/agent
 
-go 1.23
+go 1.24
 
 require (
 	github.com/fleetml/fleetml/proto v0.0.0

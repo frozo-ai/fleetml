@@ -2,6 +2,8 @@ package grpc
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,7 +11,9 @@ import (
 	"github.com/fleetml/fleetml/server/internal/deploy"
 	"github.com/fleetml/fleetml/server/internal/domain"
 	"github.com/fleetml/fleetml/server/internal/fleet"
+	servermodel "github.com/fleetml/fleetml/server/internal/model"
 	"github.com/fleetml/fleetml/server/internal/monitor"
+	"github.com/fleetml/fleetml/server/internal/storage"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -24,12 +28,14 @@ type Handler struct {
 	pb.UnimplementedAgentServiceServer
 	fleet        *fleet.Manager
 	orchestrator *deploy.Orchestrator
+	registry     *servermodel.Registry
+	store        storage.ObjectStore
 	metrics      *monitor.MetricsProcessor
 	logger       *zap.SugaredLogger
 }
 
-func NewHandler(fleetMgr *fleet.Manager, orchestrator *deploy.Orchestrator, metrics *monitor.MetricsProcessor, logger *zap.SugaredLogger) *Handler {
-	return &Handler{fleet: fleetMgr, orchestrator: orchestrator, metrics: metrics, logger: logger}
+func NewHandler(fleetMgr *fleet.Manager, orchestrator *deploy.Orchestrator, registry *servermodel.Registry, store storage.ObjectStore, metrics *monitor.MetricsProcessor, logger *zap.SugaredLogger) *Handler {
+	return &Handler{fleet: fleetMgr, orchestrator: orchestrator, registry: registry, store: store, metrics: metrics, logger: logger}
 }
 
 // RegisterService registers the handler with the gRPC server.
@@ -182,10 +188,96 @@ func (h *Handler) ReportDeploymentStatus(ctx context.Context, req *pb.Deployment
 	return &pb.Empty{}, nil
 }
 
-// GetModelArtifact streams model data to an agent.
+// GetModelArtifact streams model data to an agent from S3 storage.
 func (h *Handler) GetModelArtifact(req *pb.GetModelArtifactRequest, stream pb.AgentService_GetModelArtifactServer) error {
-	// TODO: Implement model streaming from S3
-	return status.Error(codes.Unimplemented, "GetModelArtifact not yet implemented")
+	if h.registry == nil || h.store == nil {
+		return status.Error(codes.Unavailable, "model registry or storage not configured")
+	}
+
+	// Look up the model
+	m, err := h.registry.GetModel(stream.Context(), req.ModelName, req.ModelVersion)
+	if err != nil {
+		return status.Errorf(codes.NotFound, "model %s:%s not found: %v", req.ModelName, req.ModelVersion, err)
+	}
+
+	// Determine the S3 key — use compiled variant if runtime is specified and available
+	s3Key := fmt.Sprintf("%s/%s/model.%s", m.Name, m.Version, m.Format)
+	checksum := m.Checksum
+
+	if req.Runtime != "" && req.Runtime != "onnx" && req.Runtime != m.Format {
+		variant, err := h.registry.GetVariantForRuntime(stream.Context(), m.ID, req.Runtime)
+		if err == nil && variant != nil {
+			s3Key = extractS3Key(variant.ArtifactURL)
+			checksum = variant.Checksum
+		}
+		// If no variant found, fall back to base ONNX
+	}
+
+	h.logger.Infow("streaming model artifact",
+		"model", req.ModelName,
+		"version", req.ModelVersion,
+		"runtime", req.Runtime,
+		"s3_key", s3Key,
+	)
+
+	// Download from S3
+	reader, err := h.store.Download(stream.Context(), s3Key)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to download model from storage: %v", err)
+	}
+	defer reader.Close()
+
+	// Stream in 64KB chunks
+	const chunkSize = 64 * 1024
+	buf := make([]byte, chunkSize)
+	hasher := sha256.New()
+	var totalSent int64
+
+	for {
+		n, readErr := reader.Read(buf)
+		if n > 0 {
+			hasher.Write(buf[:n])
+			totalSent += int64(n)
+
+			if err := stream.Send(&pb.ModelArtifactChunk{
+				Data:      buf[:n],
+				TotalSize: m.ArtifactSize,
+				Checksum:  checksum,
+			}); err != nil {
+				return status.Errorf(codes.Internal, "failed to send chunk: %v", err)
+			}
+		}
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			return status.Errorf(codes.Internal, "failed to read model data: %v", readErr)
+		}
+	}
+
+	h.logger.Infow("model artifact streamed",
+		"model", req.ModelName,
+		"version", req.ModelVersion,
+		"bytes_sent", totalSent,
+		"checksum", "sha256:"+hex.EncodeToString(hasher.Sum(nil)),
+	)
+
+	return nil
+}
+
+// extractS3Key extracts the object key from an s3:// URL.
+func extractS3Key(s3URL string) string {
+	const prefix = "s3://"
+	if len(s3URL) <= len(prefix) {
+		return s3URL
+	}
+	rest := s3URL[len(prefix):]
+	for i, c := range rest {
+		if c == '/' {
+			return rest[i+1:]
+		}
+	}
+	return rest
 }
 
 // BulkSyncMetrics handles bulk metric sync after offline period.

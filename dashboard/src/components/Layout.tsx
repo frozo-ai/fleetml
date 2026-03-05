@@ -5,6 +5,10 @@ const navItems = [
   { path: '/dashboard/devices', label: 'Devices', icon: 'D' },
   { path: '/dashboard/models', label: 'Models', icon: 'M' },
   { path: '/dashboard/deployments', label: 'Deployments', icon: 'R' },
+  { path: '/dashboard/ab-tests', label: 'A/B Tests', icon: 'A' },
+  { path: '/dashboard/policies', label: 'Policies', icon: 'P' },
+  { path: '/dashboard/drift', label: 'Drift', icon: 'W' },
+  { path: '/dashboard/compile', label: 'Compile', icon: 'C' },
   { path: '/dashboard/settings', label: 'Settings', icon: 'S' },
 ];
 
