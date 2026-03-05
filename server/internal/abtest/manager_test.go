@@ -3,6 +3,8 @@ package abtest
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/fleetml/fleetml/server/internal/domain"
 )
 
 func TestCreateRequest_JSONRoundtrip(t *testing.T) {

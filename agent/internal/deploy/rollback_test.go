@@ -1,19 +1,43 @@
 package deploy
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
+
+// writeTempFile creates a temp file with the given data and returns its path.
+func writeTempFile(t *testing.T, dir string, data []byte) string {
+	t.Helper()
+	f, err := os.CreateTemp(dir, "model-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		t.Fatal(err)
+	}
+	f.Close()
+	return f.Name()
+}
 
 func TestRollbackManager_SaveAndRestore(t *testing.T) {
 	dir := t.TempDir()
 	rm := NewRollbackManager(dir, 3)
 
 	data := []byte("model v1.0 data")
-	if err := rm.SaveVersion("test-model", "1.0", data); err != nil {
+	srcPath := writeTempFile(t, dir, data)
+
+	if err := rm.SaveVersion("test-model", "1.0", srcPath); err != nil {
 		t.Fatal(err)
 	}
 
-	restored, err := rm.Restore("test-model", "1.0")
+	restoredPath, err := rm.Restore("test-model", "1.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	restored, err := os.ReadFile(restoredPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +55,8 @@ func TestRollbackManager_HasVersion(t *testing.T) {
 		t.Fatal("expected no version before save")
 	}
 
-	rm.SaveVersion("test-model", "1.0", []byte("data"))
+	srcPath := writeTempFile(t, dir, []byte("data"))
+	rm.SaveVersion("test-model", "1.0", srcPath)
 
 	if !rm.HasVersion("test-model", "1.0") {
 		t.Fatal("expected version after save")
@@ -42,9 +67,9 @@ func TestRollbackManager_EvictOldVersions(t *testing.T) {
 	dir := t.TempDir()
 	rm := NewRollbackManager(dir, 2) // Only keep 2
 
-	rm.SaveVersion("model", "1.0", []byte("v1"))
-	rm.SaveVersion("model", "2.0", []byte("v2"))
-	rm.SaveVersion("model", "3.0", []byte("v3"))
+	rm.SaveVersion("model", "1.0", writeTempFile(t, dir, []byte("v1")))
+	rm.SaveVersion("model", "2.0", writeTempFile(t, dir, []byte("v2")))
+	rm.SaveVersion("model", "3.0", writeTempFile(t, dir, []byte("v3")))
 
 	versions, err := rm.ListVersions("model")
 	if err != nil {
@@ -83,8 +108,8 @@ func TestRollbackManager_MultipleModels(t *testing.T) {
 	dir := t.TempDir()
 	rm := NewRollbackManager(dir, 3)
 
-	rm.SaveVersion("model-a", "1.0", []byte("a1"))
-	rm.SaveVersion("model-b", "1.0", []byte("b1"))
+	rm.SaveVersion("model-a", "1.0", writeTempFile(t, dir, []byte("a1")))
+	rm.SaveVersion("model-b", "1.0", writeTempFile(t, dir, []byte("b1")))
 
 	if !rm.HasVersion("model-a", "1.0") {
 		t.Fatal("expected model-a version")
@@ -100,8 +125,7 @@ func TestRollbackManager_MultipleModels(t *testing.T) {
 func TestRollbackManager_EmptyModelName(t *testing.T) {
 	dir := t.TempDir()
 	rm := NewRollbackManager(dir, 3)
-	err := rm.SaveVersion("", "1.0", []byte("data"))
-	// Should work — empty model name creates dir ""
+	err := rm.SaveVersion("", "1.0", writeTempFile(t, dir, []byte("data")))
 	_ = err
 }
 
@@ -125,9 +149,8 @@ func TestRollbackManager_RestoreEmptyModelName(t *testing.T) {
 func TestRollbackManager_ZeroMaxVersions(t *testing.T) {
 	dir := t.TempDir()
 	rm := NewRollbackManager(dir, 0)
-	rm.SaveVersion("model", "1.0", []byte("v1"))
-	rm.SaveVersion("model", "2.0", []byte("v2"))
-	// maxVersions=0 means evict all — should have 0 versions
+	rm.SaveVersion("model", "1.0", writeTempFile(t, dir, []byte("v1")))
+	rm.SaveVersion("model", "2.0", writeTempFile(t, dir, []byte("v2")))
 	versions, _ := rm.ListVersions("model")
 	if len(versions) > 0 {
 		t.Logf("versions with maxVersions=0: %d (eviction behavior)", len(versions))
@@ -137,7 +160,7 @@ func TestRollbackManager_ZeroMaxVersions(t *testing.T) {
 func TestRollbackManager_SpecialCharModelName(t *testing.T) {
 	dir := t.TempDir()
 	rm := NewRollbackManager(dir, 3)
-	err := rm.SaveVersion("model-v2.1_test", "1.0", []byte("data"))
+	err := rm.SaveVersion("model-v2.1_test", "1.0", writeTempFile(t, dir, []byte("data")))
 	if err != nil {
 		t.Fatalf("special chars in model name should work: %v", err)
 	}
@@ -153,15 +176,29 @@ func TestRollbackManager_LargeData(t *testing.T) {
 	for i := range bigData {
 		bigData[i] = byte(i % 256)
 	}
-	err := rm.SaveVersion("big-model", "1.0", bigData)
+	srcPath := writeTempFile(t, dir, bigData)
+	err := rm.SaveVersion("big-model", "1.0", srcPath)
 	if err != nil {
 		t.Fatalf("large data save should work: %v", err)
 	}
-	restored, err := rm.Restore("big-model", "1.0")
+	restoredPath, err := rm.Restore("big-model", "1.0")
 	if err != nil {
 		t.Fatalf("restore failed: %v", err)
 	}
+	restored, err := os.ReadFile(restoredPath)
+	if err != nil {
+		t.Fatalf("read restored: %v", err)
+	}
 	if len(restored) != len(bigData) {
 		t.Errorf("expected %d bytes, got %d", len(bigData), len(restored))
+	}
+}
+
+func TestRollbackManager_SaveVersionInvalidPath(t *testing.T) {
+	dir := t.TempDir()
+	rm := NewRollbackManager(dir, 3)
+	err := rm.SaveVersion("model", "1.0", filepath.Join(dir, "nonexistent-file"))
+	if err == nil {
+		t.Error("expected error for nonexistent source path")
 	}
 }

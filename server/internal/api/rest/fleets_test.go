@@ -1,6 +1,7 @@
 package rest
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -256,7 +257,7 @@ func TestFleetHandler_BulkAssign_InvalidJSON(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/fleets/550e8400-e29b-41d4-a716-446655440000/assign",
 		strings.NewReader("not json"))
-	req = req.WithContext(chi.RouteContext(req.Context(), rctx))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -277,7 +278,7 @@ func TestFleetHandler_BulkAssign_EmptyLabels(t *testing.T) {
 	body := `{"labels":{}}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/fleets/550e8400-e29b-41d4-a716-446655440000/assign",
 		strings.NewReader(body))
-	req = req.WithContext(chi.RouteContext(req.Context(), rctx))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -298,7 +299,7 @@ func TestFleetHandler_BulkAssign_MissingLabelsField(t *testing.T) {
 	body := `{}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/fleets/550e8400-e29b-41d4-a716-446655440000/assign",
 		strings.NewReader(body))
-	req = req.WithContext(chi.RouteContext(req.Context(), rctx))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -336,7 +337,7 @@ func TestFleetHandler_BulkAssign_EmptyBody(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/fleets/550e8400-e29b-41d4-a716-446655440000/assign",
 		strings.NewReader(""))
-	req = req.WithContext(chi.RouteContext(req.Context(), rctx))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -355,7 +356,7 @@ func TestFleetHandler_Stats_ValidUUIDWithChiContext(t *testing.T) {
 	rctx.URLParams.Add("id", "550e8400-e29b-41d4-a716-446655440000")
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/fleets/550e8400-e29b-41d4-a716-446655440000/stats", nil)
-	req = req.WithContext(chi.RouteContext(req.Context(), rctx))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 	w := httptest.NewRecorder()
 
 	// Valid UUID passes validation, but nil fleet manager causes panic

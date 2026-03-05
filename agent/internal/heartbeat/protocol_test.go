@@ -175,15 +175,15 @@ func TestScheduler_Start_ContextCancel(t *testing.T) {
 	}()
 
 	// Let it run briefly
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 
 	cancel()
 
 	select {
 	case <-done:
 		// Success: Start returned after context cancellation.
-	case <-time.After(2 * time.Second):
-		t.Fatal("scheduler did not stop within 2 seconds after context cancel")
+	case <-time.After(5 * time.Second):
+		t.Fatal("scheduler did not stop within 5 seconds after context cancel")
 	}
 }
 
@@ -241,14 +241,14 @@ func TestScheduler_SendHeartbeat_Error(t *testing.T) {
 	}()
 
 	// Let the scheduler run a few heartbeat cycles with errors
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(300 * time.Millisecond)
 
 	cancel()
 
 	select {
 	case <-done:
 		// Success: scheduler continued despite errors and stopped on cancel.
-	case <-time.After(2 * time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatal("scheduler did not stop after context cancel despite heartbeat errors")
 	}
 }

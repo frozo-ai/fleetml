@@ -1,6 +1,10 @@
 package model
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestONNXRuntime_Name(t *testing.T) {
 	r := NewONNXRuntime()
@@ -17,9 +21,15 @@ func TestONNXRuntime_IsSupported(t *testing.T) {
 }
 
 func TestONNXRuntime_LoadAndUnload(t *testing.T) {
+	dir := t.TempDir()
+	modelPath := filepath.Join(dir, "test-model.onnx")
+	if err := os.WriteFile(modelPath, []byte("fake-model"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
 	r := NewONNXRuntime()
 
-	if err := r.Load("/tmp/test-model.onnx"); err != nil {
+	if err := r.Load(modelPath); err != nil {
 		t.Fatalf("unexpected error loading model: %v", err)
 	}
 
@@ -29,8 +39,14 @@ func TestONNXRuntime_LoadAndUnload(t *testing.T) {
 }
 
 func TestONNXRuntime_Infer(t *testing.T) {
+	dir := t.TempDir()
+	modelPath := filepath.Join(dir, "test-model.onnx")
+	if err := os.WriteFile(modelPath, []byte("fake-model"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
 	r := NewONNXRuntime()
-	r.Load("/tmp/test-model.onnx")
+	r.Load(modelPath)
 
 	input := []byte("test input")
 	output, err := r.Infer(input)

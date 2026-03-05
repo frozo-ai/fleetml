@@ -29,17 +29,17 @@ type S3Store struct {
 func NewS3Store(endpoint, accessKey, secretKey, bucket, region string) (*S3Store, error) {
 	// Parse endpoint to determine SSL
 	// Handle endpoints with or without scheme (e.g. "minio:9000" or "http://minio:9000")
-	u, err := url.Parse(endpoint)
-	if err != nil {
-		return nil, fmt.Errorf("parse endpoint: %w", err)
-	}
+	var useSSL bool
+	var host string
 
-	useSSL := u.Scheme == "https"
-	host := u.Host
-	if host == "" {
-		// No scheme provided — treat entire endpoint as host:port
+	u, err := url.Parse(endpoint)
+	if err != nil || u.Host == "" {
+		// No scheme provided or parse failed — treat entire endpoint as host:port
 		host = endpoint
 		useSSL = false
+	} else {
+		useSSL = u.Scheme == "https"
+		host = u.Host
 	}
 
 	client, err := minio.New(host, &minio.Options{

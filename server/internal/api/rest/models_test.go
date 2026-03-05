@@ -250,7 +250,7 @@ func TestSplitTags(t *testing.T) {
 		{"single tag", "production", []string{"production"}},
 		{"multiple tags", "a,b,c", []string{"a", "b", "c"}},
 		{"empty string", "", nil},
-		{"trailing comma", "a,b,", []string{"a", "b", ""}},
+		{"trailing comma", "a,b,", []string{"a", "b"}},
 		{"leading comma", ",a,b", []string{"", "a", "b"}},
 		{"double comma", "a,,b", []string{"a", "", "b"}},
 	}

@@ -5,11 +5,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"go.uber.org/zap"
 )
 
 func TestInit_Disabled(t *testing.T) {
 	cfg := Config{Enabled: false}
-	provider, err := Init(context.Background(), cfg, "test", nil)
+	logger := zap.NewNop().Sugar()
+	provider, err := Init(context.Background(), cfg, "test", logger)
 	if err != nil {
 		t.Fatalf("Init disabled: %v", err)
 	}

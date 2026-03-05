@@ -217,6 +217,9 @@ func TestRefreshAccessToken_ValidRefresh(t *testing.T) {
 		t.Fatalf("generate pair: %v", err)
 	}
 
+	// Wait briefly so the new token has a different iat (issued-at) timestamp
+	time.Sleep(1100 * time.Millisecond)
+
 	newPair, err := svc.RefreshAccessToken(pair.RefreshToken)
 	if err != nil {
 		t.Fatalf("refresh: %v", err)

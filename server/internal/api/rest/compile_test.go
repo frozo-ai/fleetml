@@ -23,7 +23,7 @@ func TestCompileHandler_MissingRuntime(t *testing.T) {
 
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "test-id")
-	req = req.WithContext(chi.RouteContext(req.Context(), rctx))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 
 	w := httptest.NewRecorder()
 	handler.Compile(w, req)
@@ -42,7 +42,7 @@ func TestCompileHandler_InvalidBody(t *testing.T) {
 
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "test-id")
-	req = req.WithContext(chi.RouteContext(req.Context(), rctx))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 
 	w := httptest.NewRecorder()
 	handler.Compile(w, req)
@@ -92,7 +92,7 @@ func TestCompileHandler_EmptyBody(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "test-id")
-	req = req.WithContext(chi.RouteContext(req.Context(), rctx))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 	w := httptest.NewRecorder()
 	handler.Compile(w, req)
 	if w.Code != http.StatusBadRequest {
@@ -106,7 +106,7 @@ func TestCompileHandler_NilBody(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/models/test-id/compile", nil)
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "test-id")
-	req = req.WithContext(chi.RouteContext(req.Context(), rctx))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 	w := httptest.NewRecorder()
 	handler.Compile(w, req)
 	if w.Code != http.StatusBadRequest {
@@ -121,7 +121,7 @@ func TestCompileHandler_EmptyRuntimeString(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "test-id")
-	req = req.WithContext(chi.RouteContext(req.Context(), rctx))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 	w := httptest.NewRecorder()
 	handler.Compile(w, req)
 	if w.Code != http.StatusBadRequest {
@@ -137,7 +137,7 @@ func TestCompileHandler_ExtraFields(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "test-id")
-	req = req.WithContext(chi.RouteContext(req.Context(), rctx))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 	w := httptest.NewRecorder()
 	// Should not panic — nil registry causes panic recovered by middleware
 	func() {
@@ -164,7 +164,7 @@ func TestCompileHandler_LargeBody(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "test-id")
-	req = req.WithContext(chi.RouteContext(req.Context(), rctx))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 	w := httptest.NewRecorder()
 	func() {
 		defer func() { recover() }()

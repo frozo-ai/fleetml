@@ -25,7 +25,7 @@ func TestSQLiteStore_SaveAndGet(t *testing.T) {
 	record := &HeartbeatRecord{
 		DeviceID:  "dev-1",
 		Status:    "healthy",
-		System:    &health.SystemMetrics{CPUPercent: 45.5, RAMUsedMB: 2048},
+		System:    &health.SystemMetrics{CPUPercent: 45.5, RAMMBUsed: 2048},
 		Timestamp: time.Now().Unix(),
 	}
 

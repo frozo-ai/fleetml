@@ -242,8 +242,9 @@ func TestImportMLflow_WhitespaceModelName(t *testing.T) {
 	req := httptest.NewRequest("POST", "/api/v1/integrations/mlflow/import", strings.NewReader(`{"model_name":"   "}`))
 	w := httptest.NewRecorder()
 	handler.ImportMLflow(w, req)
-	// Whitespace-only name — depends on validation: may pass or fail
-	_ = w.Code
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for whitespace-only model name, got %d", w.Code)
+	}
 }
 
 func TestImportHuggingFace_WhitespaceRepoID(t *testing.T) {
@@ -251,5 +252,7 @@ func TestImportHuggingFace_WhitespaceRepoID(t *testing.T) {
 	req := httptest.NewRequest("POST", "/api/v1/integrations/huggingface/import", strings.NewReader(`{"repo_id":"   "}`))
 	w := httptest.NewRecorder()
 	handler.ImportHuggingFace(w, req)
-	_ = w.Code
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for whitespace-only repo_id, got %d", w.Code)
+	}
 }

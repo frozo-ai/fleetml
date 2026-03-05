@@ -13,7 +13,7 @@ func TestBackgroundSwap_Success(t *testing.T) {
 	// Set initial model
 	initial := &LoadedModel{
 		Model:   &Model{Name: "m1", Version: "1.0"},
-		Runtime: &ONNXRuntime{loaded: true},
+		Runtime: NewONNXRuntime(),
 	}
 	h.Swap(initial)
 
@@ -22,7 +22,7 @@ func TestBackgroundSwap_Success(t *testing.T) {
 		func() (*LoadedModel, error) {
 			return &LoadedModel{
 				Model:   &Model{Name: "m1", Version: "2.0"},
-				Runtime: &ONNXRuntime{loaded: true},
+				Runtime: NewONNXRuntime(),
 			}, nil
 		},
 		nil, // no verify
@@ -49,7 +49,7 @@ func TestBackgroundSwap_LoadFailure(t *testing.T) {
 
 	initial := &LoadedModel{
 		Model:   &Model{Name: "m1", Version: "1.0"},
-		Runtime: &ONNXRuntime{loaded: true},
+		Runtime: NewONNXRuntime(),
 	}
 	h.Swap(initial)
 
@@ -83,7 +83,7 @@ func TestBackgroundSwap_VerifyFailure(t *testing.T) {
 
 	initial := &LoadedModel{
 		Model:   &Model{Name: "m1", Version: "1.0"},
-		Runtime: &ONNXRuntime{loaded: true},
+		Runtime: NewONNXRuntime(),
 	}
 	h.Swap(initial)
 
@@ -92,7 +92,7 @@ func TestBackgroundSwap_VerifyFailure(t *testing.T) {
 		func() (*LoadedModel, error) {
 			return &LoadedModel{
 				Model:   &Model{Name: "m1", Version: "2.0"},
-				Runtime: &ONNXRuntime{loaded: true},
+				Runtime: NewONNXRuntime(),
 			}, nil
 		},
 		func(lm *LoadedModel) error {
@@ -118,7 +118,7 @@ func TestBackgroundSwap_ConcurrentInference(t *testing.T) {
 
 	initial := &LoadedModel{
 		Model:   &Model{Name: "m1", Version: "1.0"},
-		Runtime: &ONNXRuntime{loaded: true},
+		Runtime: NewONNXRuntime(),
 	}
 	h.Swap(initial)
 
@@ -156,7 +156,7 @@ func TestBackgroundSwap_ConcurrentInference(t *testing.T) {
 			time.Sleep(10 * time.Millisecond)
 			return &LoadedModel{
 				Model:   &Model{Name: "m1", Version: "2.0"},
-				Runtime: &ONNXRuntime{loaded: true},
+				Runtime: NewONNXRuntime(),
 			}, nil
 		},
 		nil,
@@ -189,7 +189,7 @@ func TestBackgroundSwap_DuplicateRejected(t *testing.T) {
 			time.Sleep(100 * time.Millisecond)
 			return &LoadedModel{
 				Model:   &Model{Name: "m1", Version: "2.0"},
-				Runtime: &ONNXRuntime{loaded: true},
+				Runtime: NewONNXRuntime(),
 			}, nil
 		},
 		nil,
@@ -203,7 +203,7 @@ func TestBackgroundSwap_DuplicateRejected(t *testing.T) {
 		func() (*LoadedModel, error) {
 			return &LoadedModel{
 				Model:   &Model{Name: "m1", Version: "3.0"},
-				Runtime: &ONNXRuntime{loaded: true},
+				Runtime: NewONNXRuntime(),
 			}, nil
 		},
 		nil,

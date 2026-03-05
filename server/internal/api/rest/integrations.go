@@ -3,6 +3,7 @@ package rest
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/fleetml/fleetml/server/internal/integrations"
 	mw "github.com/fleetml/fleetml/server/internal/middleware"
@@ -28,6 +29,7 @@ func (h *IntegrationHandler) ImportMLflow(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	req.ModelName = strings.TrimSpace(req.ModelName)
 	if req.ModelName == "" {
 		mw.WriteBadRequest(w, "model_name is required")
 		return
@@ -53,6 +55,7 @@ func (h *IntegrationHandler) ImportHuggingFace(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	req.RepoID = strings.TrimSpace(req.RepoID)
 	if req.RepoID == "" {
 		mw.WriteBadRequest(w, "repo_id is required")
 		return

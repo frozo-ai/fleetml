@@ -1,6 +1,7 @@
 package rest
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -118,7 +119,7 @@ func TestPolicyHandler_Update_ValidUUID_InvalidJSON(t *testing.T) {
 
 	req := httptest.NewRequest("PATCH", "/api/v1/policies/550e8400-e29b-41d4-a716-446655440000",
 		strings.NewReader("not json"))
-	req = req.WithContext(chi.RouteContext(req.Context(), rctx))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 	w := httptest.NewRecorder()
 
 	handler.Update(w, req)
@@ -136,7 +137,7 @@ func TestPolicyHandler_Update_ValidUUID_EmptyBody(t *testing.T) {
 
 	req := httptest.NewRequest("PATCH", "/api/v1/policies/550e8400-e29b-41d4-a716-446655440000",
 		strings.NewReader(""))
-	req = req.WithContext(chi.RouteContext(req.Context(), rctx))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 	w := httptest.NewRecorder()
 
 	handler.Update(w, req)
