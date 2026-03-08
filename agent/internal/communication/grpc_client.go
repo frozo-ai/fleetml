@@ -1,9 +1,12 @@
 package communication
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
+	"net/http"
 	"time"
 
 	"github.com/fleetml/fleetml/agent/internal/device"
@@ -17,19 +20,30 @@ import (
 
 // GRPCClient implements the Communicator interface using gRPC.
 type GRPCClient struct {
-	conn      *grpc.ClientConn
-	client    pb.AgentServiceClient
-	stream    pb.AgentService_HeartbeatClient
-	logger    *zap.SugaredLogger
-	address   string
+	conn       *grpc.ClientConn
+	client     pb.AgentServiceClient
+	stream     pb.AgentService_HeartbeatClient
+	logger     *zap.SugaredLogger
+	address    string
+	restURL    string // HTTP base URL for REST endpoints (log ingestion)
+	httpClient *http.Client
 }
 
 // NewGRPCClient creates a new gRPC client with exponential backoff.
+// restURL is the HTTP base URL for REST-only endpoints (e.g. log ingestion).
 func NewGRPCClient(address string, logger *zap.SugaredLogger) (*GRPCClient, error) {
 	return &GRPCClient{
 		address: address,
 		logger:  logger,
+		httpClient: &http.Client{
+			Timeout: 10 * time.Second,
+		},
 	}, nil
+}
+
+// SetRESTURL sets the HTTP base URL used for REST-only endpoints like log ingestion.
+func (c *GRPCClient) SetRESTURL(url string) {
+	c.restURL = url
 }
 
 // Connect establishes the gRPC connection with exponential backoff.
@@ -164,6 +178,45 @@ func (c *GRPCClient) ReportDeploymentStatus(ctx context.Context, deviceID, deplo
 		Timestamp:    timestamppb.Now(),
 	})
 	return err
+}
+
+// SendLogs sends a batch of log entries to the server via REST API.
+func (c *GRPCClient) SendLogs(ctx context.Context, deviceID string, entries []LogEntry) error {
+	if c.restURL == "" {
+		return fmt.Errorf("REST URL not configured for log ingestion")
+	}
+
+	payload := struct {
+		DeviceID string     `json:"device_id"`
+		Entries  []LogEntry `json:"entries"`
+	}{
+		DeviceID: deviceID,
+		Entries:  entries,
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal log entries: %w", err)
+	}
+
+	url := c.restURL + "/api/v1/devices/" + deviceID + "/logs"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("create log request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("send logs: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("log ingestion failed with status %d", resp.StatusCode)
+	}
+
+	return nil
 }
 
 // Close closes the gRPC connection.

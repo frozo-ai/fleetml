@@ -76,8 +76,7 @@ func (r *ONNXSubprocessRuntime) Infer(input []byte) ([]byte, error) {
 	// Look for the onnx_infer helper binary
 	helperPath, err := exec.LookPath("onnx_infer")
 	if err != nil {
-		// Fallback: pass-through for development/testing
-		return input, nil
+		return nil, fmt.Errorf("onnx_infer helper not found on PATH: install onnxruntime and ensure agent/tools is on PATH")
 	}
 
 	cmd := exec.Command(helperPath, "--model", r.modelPath)

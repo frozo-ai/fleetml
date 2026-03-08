@@ -3,8 +3,11 @@ package rest
 import (
 	"encoding/json"
 	"net/http"
+	"regexp"
+	"strings"
 
 	"github.com/fleetml/fleetml/server/internal/auth"
+	"github.com/fleetml/fleetml/server/internal/domain"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
@@ -22,12 +25,25 @@ func NewAuthHandler(jwt *auth.JWTService, db *pgxpool.Pool, logger *zap.SugaredL
 	return &AuthHandler{jwt: jwt, db: db, logger: logger}
 }
 
-// Register handles user registration.
+var slugRegex = regexp.MustCompile(`[^a-z0-9]+`)
+
+func toSlug(name string) string {
+	slug := strings.ToLower(strings.TrimSpace(name))
+	slug = slugRegex.ReplaceAllString(slug, "-")
+	slug = strings.Trim(slug, "-")
+	if slug == "" {
+		slug = "org"
+	}
+	return slug
+}
+
+// Register handles user registration and creates an organization.
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-		Name     string `json:"name"`
+		Email        string `json:"email"`
+		Password     string `json:"password"`
+		Name         string `json:"name"`
+		Organization string `json:"organization"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -61,21 +77,54 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Determine role: first user is admin, rest are viewer
-	var userCount int
-	h.db.QueryRow(r.Context(), `SELECT COUNT(*) FROM users`).Scan(&userCount)
-	role := "viewer"
-	if userCount == 0 {
-		role = "admin"
+	// Create organization
+	orgName := req.Organization
+	if orgName == "" {
+		orgName = strings.Split(req.Email, "@")[0] + "'s Org"
 	}
+	slug := toSlug(orgName)
+
+	// Ensure slug uniqueness by appending a suffix if needed
+	baseSlug := slug
+	for i := 1; ; i++ {
+		var existingOrgID string
+		err = h.db.QueryRow(r.Context(), `SELECT id FROM organizations WHERE slug = $1`, slug).Scan(&existingOrgID)
+		if err == pgx.ErrNoRows {
+			break
+		}
+		slug = baseSlug + "-" + strings.Repeat("x", i)
+		if i > 10 {
+			slug = baseSlug + "-" + existingOrgID[:8]
+			break
+		}
+	}
+
+	deviceLimit, fleetLimit, logRetention, features := domain.PlanLimits("free")
+	featuresJSON, _ := json.Marshal(features)
+
+	var orgID string
+	err = h.db.QueryRow(r.Context(), `
+		INSERT INTO organizations (name, slug, plan, device_limit, fleet_limit, log_retention_days, features)
+		VALUES ($1, $2, 'free', $3, $4, $5, $6)
+		RETURNING id`,
+		orgName, slug, deviceLimit, fleetLimit, logRetention, string(featuresJSON),
+	).Scan(&orgID)
+	if err != nil {
+		h.logger.Errorw("failed to create organization", "error", err)
+		http.Error(w, `{"error":"failed to create organization"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// First user in org is admin
+	role := "admin"
 
 	// Create user in database
 	var userID string
 	err = h.db.QueryRow(r.Context(), `
-		INSERT INTO users (email, password_hash, name, role)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO users (email, password_hash, name, role, org_id)
+		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id`,
-		req.Email, string(hashedPassword), req.Name, role,
+		req.Email, string(hashedPassword), req.Name, role, orgID,
 	).Scan(&userID)
 	if err != nil {
 		h.logger.Errorw("failed to create user", "error", err)
@@ -83,7 +132,12 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logger.Infow("user registered", "email", req.Email, "role", role)
+	// Create free subscription record
+	h.db.Exec(r.Context(), `
+		INSERT INTO subscriptions (org_id, plan, status)
+		VALUES ($1, 'free', 'active')`, orgID)
+
+	h.logger.Infow("user registered", "email", req.Email, "role", role, "org_id", orgID)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -94,6 +148,12 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 			"email": req.Email,
 			"name":  req.Name,
 			"role":  role,
+		},
+		"organization": map[string]interface{}{
+			"id":   orgID,
+			"name": orgName,
+			"slug": slug,
+			"plan": "free",
 		},
 	})
 }
@@ -115,12 +175,13 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Look up user in database
+	// Look up user in database (with org info)
 	var userID, name, role, passwordHash string
+	var orgID *string
 	err := h.db.QueryRow(r.Context(), `
-		SELECT id, name, role, password_hash FROM users WHERE email = $1`,
+		SELECT id, name, role, password_hash, org_id FROM users WHERE email = $1`,
 		req.Email,
-	).Scan(&userID, &name, &role, &passwordHash)
+	).Scan(&userID, &name, &role, &passwordHash, &orgID)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			http.Error(w, `{"error":"invalid email or password"}`, http.StatusUnauthorized)
@@ -137,22 +198,47 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate JWT token
-	token, expiresAt, err := h.jwt.GenerateToken(userID, req.Email, role)
+	// Generate JWT token with org_id
+	orgIDStr := ""
+	if orgID != nil {
+		orgIDStr = *orgID
+	}
+	token, expiresAt, err := h.jwt.GenerateToken(userID, req.Email, role, orgIDStr)
 	if err != nil {
 		http.Error(w, `{"error":"failed to generate token"}`, http.StatusInternalServerError)
 		return
 	}
 
+	// Get org info if available
 	resp := map[string]interface{}{
 		"token":      token,
 		"expires_at": expiresAt,
-		"user": map[string]string{
-			"id":    userID,
-			"email": req.Email,
-			"name":  name,
-			"role":  role,
+		"user": map[string]interface{}{
+			"id":     userID,
+			"email":  req.Email,
+			"name":   name,
+			"role":   role,
+			"org_id": orgIDStr,
 		},
+	}
+
+	if orgIDStr != "" {
+		var orgName, orgSlug, orgPlan string
+		var deviceLimit, fleetLimit int
+		err = h.db.QueryRow(r.Context(), `
+			SELECT name, slug, plan, device_limit, fleet_limit FROM organizations WHERE id = $1`,
+			orgIDStr,
+		).Scan(&orgName, &orgSlug, &orgPlan, &deviceLimit, &fleetLimit)
+		if err == nil {
+			resp["organization"] = map[string]interface{}{
+				"id":           orgIDStr,
+				"name":         orgName,
+				"slug":         orgSlug,
+				"plan":         orgPlan,
+				"device_limit": deviceLimit,
+				"fleet_limit":  fleetLimit,
+			}
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -167,10 +253,31 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := map[string]string{
-		"id":    claims.UserID,
-		"email": claims.Email,
-		"role":  claims.Role,
+	resp := map[string]interface{}{
+		"id":     claims.UserID,
+		"email":  claims.Email,
+		"role":   claims.Role,
+		"org_id": claims.OrgID,
+	}
+
+	// Include org details
+	if claims.OrgID != "" {
+		var orgName, orgSlug, orgPlan string
+		var deviceLimit, fleetLimit int
+		err := h.db.QueryRow(r.Context(), `
+			SELECT name, slug, plan, device_limit, fleet_limit FROM organizations WHERE id = $1`,
+			claims.OrgID,
+		).Scan(&orgName, &orgSlug, &orgPlan, &deviceLimit, &fleetLimit)
+		if err == nil {
+			resp["organization"] = map[string]interface{}{
+				"id":           claims.OrgID,
+				"name":         orgName,
+				"slug":         orgSlug,
+				"plan":         orgPlan,
+				"device_limit": deviceLimit,
+				"fleet_limit":  fleetLimit,
+			}
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

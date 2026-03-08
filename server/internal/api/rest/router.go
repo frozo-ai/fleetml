@@ -5,14 +5,15 @@ import (
 
 	"github.com/fleetml/fleetml/server/internal/abtest"
 	"github.com/fleetml/fleetml/server/internal/auth"
+	"github.com/fleetml/fleetml/server/internal/billing"
 	"github.com/fleetml/fleetml/server/internal/compiler"
 	"github.com/fleetml/fleetml/server/internal/deploy"
 	"github.com/fleetml/fleetml/server/internal/drift"
 	"github.com/fleetml/fleetml/server/internal/fleet"
 	"github.com/fleetml/fleetml/server/internal/integrations"
-	"github.com/fleetml/fleetml/server/internal/policy"
 	mw "github.com/fleetml/fleetml/server/internal/middleware"
 	"github.com/fleetml/fleetml/server/internal/model"
+	"github.com/fleetml/fleetml/server/internal/policy"
 	"github.com/fleetml/fleetml/server/internal/tracing"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -31,6 +32,7 @@ func NewRouter(
 	driftDetector *drift.Detector,
 	policyEngine *policy.Engine,
 	integrationSvc *integrations.Service,
+	billingClient *billing.Client,
 	jwtService *auth.JWTService,
 	db *pgxpool.Pool,
 	logger *zap.SugaredLogger,
@@ -51,7 +53,7 @@ func NewRouter(
 	r.Use(apiLimiter.Middleware)
 
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:3000", "http://localhost:8080"},
+		AllowedOrigins:   []string{"http://localhost:3000", "http://localhost:8080", "https://*.fleetml.dev"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
 		ExposedHeaders:   []string{"Link"},
@@ -72,6 +74,7 @@ func NewRouter(
 	driftHandler := NewDriftHandler(driftDetector, logger)
 	policyHandler := NewPolicyHandler(policyEngine, logger)
 	integrationHandler := NewIntegrationHandler(integrationSvc, logger)
+	billingHandler := NewBillingHandler(billingClient, logger)
 
 	// Strict rate limiter for auth endpoints
 	authLimiter := mw.StrictRateLimiter(logger)
@@ -82,12 +85,21 @@ func NewRouter(
 		r.With(authLimiter.Middleware).Post("/auth/register", authHandler.Register)
 		r.With(authLimiter.Middleware).Post("/auth/login", authHandler.Login)
 
+		// Dodo Payments webhook (public, verified by webhook signature)
+		r.Post("/webhooks/dodo", billingHandler.Webhook)
+
 		// Authenticated routes
 		r.Group(func(r chi.Router) {
 			r.Use(jwtService.AuthMiddleware)
 
 			// Auth
 			r.Get("/auth/me", authHandler.Me)
+
+			// Billing
+			r.Route("/billing", func(r chi.Router) {
+				r.Get("/subscription", billingHandler.GetSubscription)
+				r.Post("/checkout", billingHandler.CreateCheckout)
+			})
 
 			// Models
 			r.Route("/models", func(r chi.Router) {
@@ -103,6 +115,7 @@ func NewRouter(
 				r.With(auth.RequirePermission("devices:read")).Get("/", deviceHandler.List)
 				r.With(auth.RequirePermission("devices:read")).Get("/{device_id}", deviceHandler.Get)
 				r.With(auth.RequirePermission("devices:read")).Get("/{device_id}/logs", logsHandler.GetLogs)
+				r.With(auth.RequirePermission("devices:write")).Post("/{device_id}/logs", logsHandler.IngestLogs)
 				r.With(auth.RequirePermission("devices:write")).Patch("/{device_id}", deviceHandler.Update)
 				r.With(auth.RequirePermission("devices:delete")).Delete("/{device_id}", deviceHandler.Delete)
 			})

@@ -311,3 +311,37 @@ func TestParseDuration_Whitespace(t *testing.T) {
 		t.Error("expected error for input with spaces")
 	}
 }
+
+func TestLogEntry_StructuredFields(t *testing.T) {
+	entry := logEntry{
+		ID:        42,
+		Timestamp: time.Now(),
+		DeviceID:  "device-001",
+		Level:     "warn",
+		Component: "deploy",
+		Message:   "model download started",
+		Metadata:  map[string]string{"model": "v1", "size": "15MB"},
+	}
+
+	if entry.Component != "deploy" {
+		t.Errorf("expected component 'deploy', got %s", entry.Component)
+	}
+	if entry.Metadata["model"] != "v1" {
+		t.Errorf("expected metadata model=v1, got %s", entry.Metadata["model"])
+	}
+	if entry.ID != 42 {
+		t.Errorf("expected id 42, got %d", entry.ID)
+	}
+}
+
+func TestLogEntry_HeartbeatFallback(t *testing.T) {
+	// Ensure heartbeat-derived entries still include component field
+	entry := logEntry{
+		Component: "heartbeat",
+		Level:     "info",
+		Message:   "heartbeat",
+	}
+	if entry.Component != "heartbeat" {
+		t.Errorf("expected component 'heartbeat', got %s", entry.Component)
+	}
+}

@@ -39,6 +39,10 @@ func (f *fakeCommunicator) ReportDeploymentStatus(ctx context.Context, deviceID,
 	return nil
 }
 
+func (f *fakeCommunicator) SendLogs(ctx context.Context, deviceID string, entries []LogEntry) error {
+	return nil
+}
+
 func (f *fakeCommunicator) Close() error { return nil }
 
 func (f *fakeCommunicator) setFail(fail bool) {

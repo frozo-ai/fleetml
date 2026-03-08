@@ -51,14 +51,13 @@ func TestONNXSubprocessRuntime_LoadAndInfer(t *testing.T) {
 		t.Errorf("expected model path %q, got %q", modelPath, r.ModelPath())
 	}
 
-	// Infer should work (fallback passthrough since onnx_infer helper isn't present)
-	input := []byte("test-input")
-	output, err := r.Infer(input)
-	if err != nil {
-		t.Fatalf("Infer failed: %v", err)
+	// Infer should return an error when onnx_infer helper is not on PATH
+	_, err := r.Infer([]byte("test-input"))
+	if err == nil {
+		t.Fatal("expected error when onnx_infer helper is not on PATH")
 	}
-	if string(output) != string(input) {
-		t.Error("expected passthrough output in dev mode")
+	if !strings.Contains(err.Error(), "onnx_infer helper not found") {
+		t.Fatalf("expected 'onnx_infer helper not found' error, got: %v", err)
 	}
 }
 
@@ -113,7 +112,7 @@ func TestONNXSubprocessRuntime_ConcurrentAccess(t *testing.T) {
 		go func() {
 			defer func() { done <- struct{}{} }()
 			for j := 0; j < 100; j++ {
-				r.Infer([]byte("test"))
+				r.Infer([]byte("test")) // may error without helper — that's fine, testing concurrency safety
 				r.IsLoaded()
 				r.ModelPath()
 			}

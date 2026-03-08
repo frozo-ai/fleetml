@@ -106,6 +106,7 @@ type User struct {
 	Name         string    `json:"name"`
 	PasswordHash string    `json:"-"`
 	Role         string    `json:"role"` // admin, deployer, viewer
+	OrgID        *string   `json:"org_id,omitempty"`
 	APIKey       *string   `json:"api_key,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
@@ -148,6 +149,67 @@ type Policy struct {
 	CreatedAt     time.Time              `json:"created_at"`
 	UpdatedAt     time.Time              `json:"updated_at"`
 	CreatedBy     *string                `json:"created_by,omitempty"`
+}
+
+// Organization represents a tenant in the multi-tenant system.
+type Organization struct {
+	ID               string         `json:"id"`
+	Name             string         `json:"name"`
+	Slug             string         `json:"slug"`
+	Plan             string         `json:"plan"` // free, starter, pro, enterprise
+	DeviceLimit      int            `json:"device_limit"`
+	FleetLimit       int            `json:"fleet_limit"`
+	LogRetentionDays int            `json:"log_retention_days"`
+	Features         map[string]bool `json:"features"`
+	CreatedAt        time.Time      `json:"created_at"`
+	UpdatedAt        time.Time      `json:"updated_at"`
+}
+
+// Subscription tracks a Dodo Payments subscription for an organization.
+type Subscription struct {
+	ID                  string     `json:"id"`
+	OrgID               string     `json:"org_id"`
+	DodoSubscriptionID  string     `json:"dodo_subscription_id,omitempty"`
+	DodoCustomerID      string     `json:"dodo_customer_id,omitempty"`
+	Plan                string     `json:"plan"`
+	Status              string     `json:"status"` // active, on_hold, cancelled, expired
+	CurrentPeriodStart  *time.Time `json:"current_period_start,omitempty"`
+	CurrentPeriodEnd    *time.Time `json:"current_period_end,omitempty"`
+	CancelledAt         *time.Time `json:"cancelled_at,omitempty"`
+	CreatedAt           time.Time  `json:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at"`
+}
+
+// PlanLimits returns the limits for a given plan.
+func PlanLimits(plan string) (deviceLimit, fleetLimit, logRetentionDays int, features map[string]bool) {
+	switch plan {
+	case "starter":
+		return 25, 3, 7, map[string]bool{
+			"ab_testing":      false,
+			"drift_detection": false,
+			"policy_engine":   false,
+		}
+	case "pro":
+		return 100, -1, 30, map[string]bool{
+			"ab_testing":      true,
+			"drift_detection": true,
+			"policy_engine":   true,
+		}
+	case "enterprise":
+		return -1, -1, 90, map[string]bool{
+			"ab_testing":      true,
+			"drift_detection": true,
+			"policy_engine":   true,
+			"sso":             true,
+			"audit_log":       true,
+		}
+	default: // free
+		return 5, 1, 3, map[string]bool{
+			"ab_testing":      false,
+			"drift_detection": false,
+			"policy_engine":   false,
+		}
+	}
 }
 
 // DeviceFilter provides filter criteria for listing devices.

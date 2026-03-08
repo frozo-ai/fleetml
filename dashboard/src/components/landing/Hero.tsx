@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 
 const terminalLines = [
-  { text: '$ fleetml deploy model.onnx --fleet production', isCommand: true },
+  { text: '$ fleetml deploy defect-detector.onnx --fleet production --canary 5,50,100', isCommand: true },
   { text: '\u2713 Model uploaded (SHA-256 verified)', isCommand: false },
-  { text: '\u2713 Deploying to 47 devices...', isCommand: false },
-  { text: '\u2713 Canary 5% \u2192 50% \u2192 100% complete', isCommand: false },
-  { text: '\u2713 Zero-downtime hot-swap successful', isCommand: false },
+  { text: '\u2713 Compiled: TensorRT (Jetson), TFLite (RPi), OpenVINO (Intel)', isCommand: false },
+  { text: '\u2713 Canary 5% \u2192 12 devices healthy', isCommand: false },
+  { text: '\u2713 Canary 50% \u2192 120 devices healthy', isCommand: false },
+  { text: '\u2713 Rolling out to 100%... 240/240 complete', isCommand: false },
+  { text: '\u2713 Zero-downtime hot-swap successful. 0 dropped inferences.', isCommand: false },
 ];
 
 function Terminal() {
@@ -32,13 +35,13 @@ function Terminal() {
     if (visibleLines >= terminalLines.length) return;
 
     const currentLine = terminalLines[visibleLines];
-    const speed = currentLine.isCommand ? 40 : 10;
+    const speed = currentLine.isCommand ? 25 : 8;
 
     if (typedChars < currentLine.text.length) {
       const timer = setTimeout(() => setTypedChars((c) => c + 1), speed);
       return () => clearTimeout(timer);
     } else {
-      const delay = currentLine.isCommand ? 600 : 300;
+      const delay = currentLine.isCommand ? 800 : 250;
       const timer = setTimeout(() => {
         setVisibleLines((l) => l + 1);
         setTypedChars(0);
@@ -54,9 +57,9 @@ function Terminal() {
           <div className="w-3 h-3 rounded-full bg-red-500/80" />
           <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
           <div className="w-3 h-3 rounded-full bg-green-500/80" />
-          <span className="ml-2 text-xs text-gray-500 font-medium">terminal</span>
+          <span className="ml-2 text-xs text-gray-500 font-medium">terminal &mdash; 240 devices, 3 chip types</span>
         </div>
-        <div className="bg-gray-950 p-5 font-mono text-sm leading-relaxed min-h-[180px]">
+        <div className="bg-gray-950 p-5 font-mono text-sm leading-relaxed min-h-[220px]">
           {terminalLines.map((line, i) => {
             if (i > visibleLines) return null;
             const isCurrentLine = i === visibleLines;
@@ -106,42 +109,43 @@ export default function Hero() {
         {/* Badge */}
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-white/10 bg-white/5 text-sm text-gray-400 mb-8 animate-fade-in-up">
           <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-          Open Source &mdash; Apache 2.0
+          Open Source &mdash; Apache 2.0 &bull; Free tier available
         </div>
 
-        {/* Headline — pain-first */}
+        {/* Headline */}
         <h1 className="text-4xl sm:text-5xl md:text-7xl font-extrabold text-white leading-tight tracking-tight mb-6 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
-          Stop SSH-ing Into Every{' '}
-          <span className="gradient-text">Edge Device</span>
-          {' '}to Update Your Models
+          Deploy AI Models to{' '}
+          <span className="gradient-text">Edge Devices.</span>
+          <br />
+          One Command.
         </h1>
 
-        {/* Subtitle — benefit-led */}
+        {/* Subtitle */}
         <p className="text-lg sm:text-xl text-gray-400 max-w-2xl mx-auto mb-6 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-          One command deploys to your entire fleet &mdash; Jetson, Raspberry Pi, Intel, Coral, any chip.
-          Canary rollouts, zero-downtime hot-swap, offline-first. Open source.
+          FleetML ships your models to hundreds of devices across any chip type &mdash; with canary rollouts,
+          zero-downtime updates, and offline-first reliability. Stop SSH-ing into devices. Start deploying.
         </p>
 
-        {/* Definition block — extractable by AI search engines */}
+        {/* AI-extractable definition */}
         <p className="text-sm text-gray-500 max-w-2xl mx-auto mb-10 animate-fade-in-up" style={{ animationDelay: '0.25s' }}>
-          FleetML is an open-source, chip-neutral edge MLOps platform that deploys, updates, and monitors ML models across
-          heterogeneous edge device fleets. It compiles one ONNX model for every chip type automatically, handles canary
-          rollouts with auto-rollback, and operates offline-first so devices keep running without connectivity.
+          FleetML is an open-source, chip-neutral edge MLOps platform that compiles one ONNX model
+          for every chip type automatically, deploys with canary rollouts and auto-rollback, and
+          operates offline-first so devices keep running without connectivity.
         </p>
 
         {/* CTAs */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
-          <a
-            href="#quickstart"
+          <Link
+            to="/signup"
             className="btn-primary text-base"
           >
-            Try the Quickstart
+            Start Free &mdash; 5 Devices Included
             <svg className="w-4 h-4 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
             </svg>
-          </a>
+          </Link>
           <a
-            href="https://github.com/fleetml/fleetml"
+            href="https://github.com/ashish-frozo/fleetML"
             target="_blank"
             rel="noopener noreferrer"
             className="btn-outline text-base"
@@ -153,7 +157,7 @@ export default function Hero() {
           </a>
         </div>
 
-        {/* Terminal — embedded in hero as proof */}
+        {/* Terminal */}
         <Terminal />
       </div>
     </section>

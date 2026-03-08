@@ -1,4 +1,4 @@
-.PHONY: build test lint agent server cli dashboard proto migrate-up
+.PHONY: build test lint agent server cli dashboard proto migrate-up quickstart
 
 # Build all
 build: agent server cli dashboard
@@ -67,6 +67,10 @@ docker-build:
 	docker build -t fleetml/agent:latest -f agent/Dockerfile .
 	docker build -t fleetml/server:latest -f server/Dockerfile .
 	docker build -t fleetml/dashboard:latest -f dashboard/Dockerfile .
+
+# One-command quickstart: infra + server + demo data + 6 simulated devices
+quickstart:
+	./scripts/quickstart.sh
 
 # Start local dev environment
 dev:

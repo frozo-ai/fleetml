@@ -38,19 +38,19 @@ You trained a great model. Now you need it running on 200 devices across 3 chip 
 ## The Fix
 
 ```bash
-# Start FleetML (control plane + dashboard + compiler)
+# Clone and run — one command starts everything with 6 simulated devices
 git clone https://github.com/ashish-frozo/fleetML.git && cd fleetML
-docker compose up -d
+make quickstart
+```
 
-# Register and login
-curl -X POST localhost:8080/api/v1/auth/register \
-  -d '{"email":"you@company.com","password":"secret","role":"admin"}'
+That's it. The quickstart script starts infrastructure (PostgreSQL, MinIO, NATS), builds the server, creates a demo user, registers 6 simulated edge devices (Jetson, Raspberry Pi, Intel NUC), uploads a sample model, and prints ready-to-use curl commands. Everything runs locally in about 60 seconds.
 
-# Deploy a model to every device in your fleet
-fleetml deploy defect-detector.onnx --fleet factory-floor --wait
+```bash
+# Then deploy a model to your fleet
+fleetml deploy defect-detector.onnx --fleet production --canary 5,50,100
 
 # Watch it roll out
-fleetml status --fleet factory-floor
+fleetml status --fleet production
 ```
 
 FleetML handles compilation, OTA delivery, canary rollout, health monitoring, and automatic rollback. Your model is running on every device in minutes — not weeks.

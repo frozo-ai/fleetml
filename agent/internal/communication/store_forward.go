@@ -95,6 +95,15 @@ func (sf *StoreForwardManager) ReportDeploymentStatus(ctx context.Context, devic
 	return sf.primary.ReportDeploymentStatus(ctx, deviceID, deploymentID, state, errMsg)
 }
 
+// SendLogs delegates to primary. Logs are best-effort — dropped if offline.
+func (sf *StoreForwardManager) SendLogs(ctx context.Context, deviceID string, entries []LogEntry) error {
+	if !sf.isConnected() {
+		sf.logger.Debugw("offline, dropping log batch", "entries", len(entries))
+		return nil
+	}
+	return sf.primary.SendLogs(ctx, deviceID, entries)
+}
+
 // Close closes both the primary communicator and the local store.
 func (sf *StoreForwardManager) Close() error {
 	if err := sf.primary.Close(); err != nil {

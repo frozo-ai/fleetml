@@ -2,16 +2,18 @@ import { useEffect } from 'react';
 import Navbar from '../components/landing/Navbar';
 import Hero from '../components/landing/Hero';
 import LogoCloud from '../components/landing/LogoCloud';
+import Problem from '../components/landing/Problem';
 import HowItWorks from '../components/landing/HowItWorks';
 import Features from '../components/landing/Features';
 import Stats from '../components/landing/Stats';
 import MidPageCTA from '../components/landing/MidPageCTA';
 import CodeExample from '../components/landing/CodeExample';
-import Quickstart from '../components/landing/Quickstart';
 import UseCases from '../components/landing/UseCases';
 import Comparison from '../components/landing/Comparison';
+import Pricing from '../components/landing/Pricing';
 import InlineEmailCapture from '../components/landing/InlineEmailCapture';
 import Architecture from '../components/landing/Architecture';
+import FAQ from '../components/landing/FAQ';
 import OpenSourceCTA from '../components/landing/OpenSourceCTA';
 import Footer from '../components/landing/Footer';
 
@@ -35,16 +37,18 @@ export default function LandingPage() {
       <Navbar />
       <Hero />
       <LogoCloud />
+      <Problem />
       <HowItWorks />
       <Features />
       <Stats />
       <MidPageCTA />
       <CodeExample />
-      <Quickstart />
       <UseCases />
       <Comparison />
+      <Pricing />
       <InlineEmailCapture />
       <Architecture />
+      <FAQ />
       <OpenSourceCTA />
       <Footer />
     </main>

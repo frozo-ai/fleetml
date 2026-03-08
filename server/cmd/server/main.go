@@ -15,16 +15,17 @@ import (
 	"github.com/fleetml/fleetml/server/internal/api/grpc"
 	"github.com/fleetml/fleetml/server/internal/api/rest"
 	"github.com/fleetml/fleetml/server/internal/auth"
+	"github.com/fleetml/fleetml/server/internal/billing"
 	"github.com/fleetml/fleetml/server/internal/compiler"
 	"github.com/fleetml/fleetml/server/internal/config"
 	"github.com/fleetml/fleetml/server/internal/deploy"
 	"github.com/fleetml/fleetml/server/internal/drift"
 	"github.com/fleetml/fleetml/server/internal/fleet"
 	"github.com/fleetml/fleetml/server/internal/integrations"
-	"github.com/fleetml/fleetml/server/internal/policy"
 	"github.com/fleetml/fleetml/server/internal/messaging"
 	"github.com/fleetml/fleetml/server/internal/model"
 	"github.com/fleetml/fleetml/server/internal/monitor"
+	"github.com/fleetml/fleetml/server/internal/policy"
 	"github.com/fleetml/fleetml/server/internal/storage"
 	"github.com/fleetml/fleetml/server/internal/tracing"
 	"go.uber.org/zap"
@@ -180,8 +181,14 @@ func main() {
 	go promExporter.Start(ctx, 15*time.Second)
 	log.Info("monitoring services started (metrics processor, alert evaluator, prometheus)")
 
+	// 5e. Initialize billing client
+	billingClient := billing.NewClient(cfg.Billing, pool, log)
+	if cfg.Billing.DodoAPIKey != "" {
+		log.Infow("Dodo Payments billing configured", "environment", cfg.Billing.DodoEnvironment)
+	}
+
 	// 6. Start REST API
-	router := rest.NewRouter(fleetMgr, registry, orchestrator, compilerClient, abtestMgr, driftDetector, policyEngine, integrationSvc, jwtService, pool, log)
+	router := rest.NewRouter(fleetMgr, registry, orchestrator, compilerClient, abtestMgr, driftDetector, policyEngine, integrationSvc, billingClient, jwtService, pool, log)
 	restAddr := fmt.Sprintf(":%d", cfg.Server.RESTPort)
 	httpServer := &http.Server{
 		Addr:         restAddr,

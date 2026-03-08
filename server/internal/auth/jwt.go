@@ -19,6 +19,7 @@ type Claims struct {
 	UserID string `json:"user_id"`
 	Email  string `json:"email"`
 	Role   string `json:"role"`
+	OrgID  string `json:"org_id,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -48,7 +49,7 @@ func NewJWTService(secret string, expiry time.Duration) *JWTService {
 }
 
 // GenerateToken creates a new JWT token.
-func (j *JWTService) GenerateToken(userID, email, role string) (string, time.Time, error) {
+func (j *JWTService) GenerateToken(userID, email, role string, orgID ...string) (string, time.Time, error) {
 	expiresAt := time.Now().Add(j.expiry)
 
 	claims := &Claims{
@@ -60,6 +61,9 @@ func (j *JWTService) GenerateToken(userID, email, role string) (string, time.Tim
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			Issuer:    "fleetml",
 		},
+	}
+	if len(orgID) > 0 && orgID[0] != "" {
+		claims.OrgID = orgID[0]
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

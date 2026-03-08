@@ -26,10 +26,24 @@ export const api = {
 
   // Auth
   login: (email: string, password: string) =>
-    request<{ token: string; user: { id: string; email: string; role: string } }>(
+    request<{ token: string; user: { id: string; email: string; role: string }; organization?: { id: string; name: string; slug: string; plan: string; device_limit: number; fleet_limit: number } }>(
       '/api/v1/auth/login',
       { method: 'POST', body: JSON.stringify({ email, password }) }
     ),
+  register: (email: string, password: string, name: string, organization: string) =>
+    request<{ message: string; user: { id: string; email: string }; organization: { id: string; name: string; slug: string; plan: string } }>(
+      '/api/v1/auth/register',
+      { method: 'POST', body: JSON.stringify({ email, password, name, organization }) }
+    ),
+  me: () => request<{ id: string; email: string; role: string; org_id: string; organization?: { id: string; name: string; slug: string; plan: string; device_limit: number; fleet_limit: number } }>('/api/v1/auth/me'),
+
+  // Billing
+  getSubscription: () => request<{ plan: string; status: string; dodo_subscription_id?: string }>('/api/v1/billing/subscription'),
+  createCheckout: (plan: string) =>
+    request<{ checkout_url: string; session_id: string }>('/api/v1/billing/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ plan }),
+    }),
 
   // Devices
   listDevices: (params?: { status?: string; fleet_id?: string }) => {

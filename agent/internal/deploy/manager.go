@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/fleetml/fleetml/agent/internal/communication"
@@ -155,11 +156,24 @@ func (m *Manager) handleDeploy(ctx context.Context, cmd communication.Command) e
 		}, nil
 	}
 
-	// Verify function: run a test inference if possible
+	// Verify function: run a test inference to validate the model is operable.
+	// Sends an empty JSON object — onnx_infer generates zero-filled dummy
+	// tensors for any inputs not provided, so this validates that the model
+	// loads and executes without requiring knowledge of the model's schema.
 	verifyFn := func(lm *model.LoadedModel) error {
-		// Run a minimal test inference to validate the model loads correctly
-		_, err := lm.Runtime.Infer([]byte("test"))
+		_, err := lm.Runtime.Infer([]byte("{}"))
 		if err != nil {
+			// If the inference helper binary is simply not installed, skip
+			// verification rather than failing the deployment — the model
+			// file is still valid (passed Load). This allows deployments on
+			// devices that use external inference servers or custom runtimes.
+			if strings.Contains(err.Error(), "helper not found") {
+				m.logger.Warnw("onnx_infer helper not found, skipping verification inference",
+					"model", payload.ModelName,
+					"version", payload.ModelVersion,
+				)
+				return nil
+			}
 			return fmt.Errorf("test inference failed: %w", err)
 		}
 		return nil

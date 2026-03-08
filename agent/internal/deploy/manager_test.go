@@ -44,6 +44,10 @@ func (m *mockCommunicator) ReportDeploymentStatus(ctx context.Context, deviceID,
 	return nil
 }
 
+func (m *mockCommunicator) SendLogs(ctx context.Context, deviceID string, entries []communication.LogEntry) error {
+	return nil
+}
+
 func (m *mockCommunicator) Close() error { return nil }
 
 func newTestManager(t *testing.T) (*Manager, *mockCommunicator) {

@@ -38,7 +38,7 @@ func TestONNXRuntime_LoadAndUnload(t *testing.T) {
 	}
 }
 
-func TestONNXRuntime_Infer(t *testing.T) {
+func TestONNXRuntime_Infer_NoHelper(t *testing.T) {
 	dir := t.TempDir()
 	modelPath := filepath.Join(dir, "test-model.onnx")
 	if err := os.WriteFile(modelPath, []byte("fake-model"), 0o644); err != nil {
@@ -48,12 +48,9 @@ func TestONNXRuntime_Infer(t *testing.T) {
 	r := NewONNXRuntime()
 	r.Load(modelPath)
 
-	input := []byte("test input")
-	output, err := r.Infer(input)
-	if err != nil {
-		t.Fatalf("unexpected error during inference: %v", err)
-	}
-	if output == nil {
-		t.Fatal("expected non-nil output")
+	// Without onnx_infer on PATH, Infer returns an error
+	_, err := r.Infer([]byte("test input"))
+	if err == nil {
+		t.Fatal("expected error when onnx_infer helper is not on PATH")
 	}
 }
