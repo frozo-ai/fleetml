@@ -109,22 +109,26 @@ func main() {
 		log.Info("database migrations applied")
 	}
 
-	// 4. Connect to MinIO/S3
-	s3Store, err := storage.NewS3Store(
-		cfg.Storage.Endpoint,
-		cfg.Storage.AccessKey,
-		cfg.Storage.SecretKey,
-		cfg.Storage.Bucket,
-		cfg.Storage.Region,
-	)
-	if err != nil {
-		log.Fatalw("failed to connect to S3 storage", "error", err)
-	}
-
-	if err := s3Store.EnsureBucket(ctx); err != nil {
-		log.Warnw("failed to ensure S3 bucket", "error", err)
+	// 4. Connect to MinIO/S3 (optional — server starts without it)
+	var s3Store *storage.S3Store
+	if cfg.Storage.Endpoint != "" && cfg.Storage.AccessKey != "" {
+		var err error
+		s3Store, err = storage.NewS3Store(
+			cfg.Storage.Endpoint,
+			cfg.Storage.AccessKey,
+			cfg.Storage.SecretKey,
+			cfg.Storage.Bucket,
+			cfg.Storage.Region,
+		)
+		if err != nil {
+			log.Warnw("failed to connect to S3 storage (model uploads disabled)", "error", err)
+		} else if err := s3Store.EnsureBucket(ctx); err != nil {
+			log.Warnw("failed to ensure S3 bucket", "error", err)
+		} else {
+			log.Info("S3 storage ready")
+		}
 	} else {
-		log.Info("S3 storage ready")
+		log.Warn("S3 storage not configured — model uploads/downloads disabled")
 	}
 
 	// 5. Initialize services

@@ -1,0 +1,14 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY compiler/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY compiler/ ./compiler/
+
+ENV PYTHONPATH=/app
+
+EXPOSE 8081
+
+CMD ["uvicorn", "compiler.main:app", "--host", "0.0.0.0", "--port", "8081"]
