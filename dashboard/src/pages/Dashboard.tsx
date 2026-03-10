@@ -1,13 +1,19 @@
 import { useDevices } from '../hooks/useDevices';
 import { useDeployments } from '../hooks/useDeployments';
 import DeploymentProgress from '../components/DeploymentProgress';
+import OnboardingPage from './Onboarding';
 
 export default function DashboardPage() {
-  const { data: devicesData } = useDevices();
+  const { data: devicesData, isLoading: devicesLoading } = useDevices();
   const { data: deploymentsData } = useDeployments();
 
   const devices = devicesData?.devices || [];
   const deployments = deploymentsData?.deployments || [];
+
+  // Show onboarding if user has no devices
+  if (!devicesLoading && devices.length === 0) {
+    return <OnboardingPage />;
+  }
 
   const healthy = devices.filter((d) => d.status === 'healthy').length;
   const warning = devices.filter((d) => d.status === 'warning').length;

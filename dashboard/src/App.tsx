@@ -14,6 +14,7 @@ import PoliciesPage from './pages/Policies'
 import DriftAlertsPage from './pages/DriftAlerts'
 import CompilePage from './pages/Compile'
 import BillingPage from './pages/Billing'
+import OnboardingPage from './pages/Onboarding'
 import SettingsPage from './pages/Settings'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -41,6 +42,7 @@ function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/dashboard" element={<ProtectedRoute><Layout><DashboardPage /></Layout></ProtectedRoute>} />
+      <Route path="/dashboard/get-started" element={<ProtectedRoute><Layout><OnboardingPage /></Layout></ProtectedRoute>} />
       <Route path="/dashboard/devices" element={<ProtectedRoute><Layout><DevicesPage /></Layout></ProtectedRoute>} />
       <Route path="/dashboard/devices/:deviceId" element={<ProtectedRoute><Layout><DeviceDetailPage /></Layout></ProtectedRoute>} />
       <Route path="/dashboard/models" element={<ProtectedRoute><Layout><ModelsPage /></Layout></ProtectedRoute>} />
