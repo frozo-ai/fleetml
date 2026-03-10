@@ -14,7 +14,16 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const cloudServerURL = "https://api.fleetml.dev"
+// cloudServerURL is the FleetML Cloud SaaS endpoint.
+// Override with FLEETML_CLOUD_URL env var for custom deployments.
+var cloudServerURL = getCloudURL()
+
+func getCloudURL() string {
+	if v := os.Getenv("FLEETML_CLOUD_URL"); v != "" {
+		return v
+	}
+	return "https://server-production-91d4.up.railway.app"
+}
 
 var initCmd = &cobra.Command{
 	Use:   "init",
@@ -115,8 +124,8 @@ func initCloud(cmd *cobra.Command) error {
 	fmt.Println()
 	fmt.Println("FleetML Cloud is ready! Next steps:")
 	fmt.Println()
-	fmt.Println("  1. Install the agent on your device:")
-	fmt.Println("     curl -sSL https://get.fleetml.dev | sh")
+	fmt.Println("  1. Install the agent on your edge device:")
+	fmt.Println("     curl -sSL https://raw.githubusercontent.com/ashish-frozo/fleetML/main/scripts/install-agent.sh | sh")
 	fmt.Println()
 	fmt.Println("  2. Deploy a model:")
 	fmt.Println("     fleetml deploy model.onnx --fleet default")

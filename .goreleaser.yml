@@ -1,0 +1,54 @@
+version: 2
+
+project_name: fleetml
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: fleetml-cli
+    dir: cli
+    main: ./cmd/fleetml
+    binary: fleetml
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/fleetml/fleetml/cli/cmd.Version={{.Version}}
+      - -X github.com/fleetml/fleetml/cli/cmd.GitCommit={{.ShortCommit}}
+      - -X github.com/fleetml/fleetml/cli/cmd.BuildDate={{.Date}}
+
+archives:
+  - id: cli-archives
+    builds:
+      - fleetml-cli
+    format: tar.gz
+    name_template: "fleetml_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+
+release:
+  github:
+    owner: ashish-frozo
+    name: fleetML
+  prerelease: auto
+  name_template: "FleetML CLI v{{.Version}}"
