@@ -5,8 +5,7 @@ const navLinks = [
   { href: '#features', label: 'Features' },
   { href: '#pricing', label: 'Pricing' },
   { href: '#how-it-works', label: 'How It Works' },
-  { href: '#architecture', label: 'Architecture' },
-  { href: 'https://github.com/ashish-frozo/fleetML#readme', label: 'Docs', external: true },
+  { href: '#faq', label: 'FAQ' },
 ];
 
 export default function Navbar() {
@@ -43,8 +42,8 @@ export default function Navbar() {
               <a
                 key={link.label}
                 href={link.href}
-                target={link.external ? '_blank' : undefined}
-                rel={link.external ? 'noopener noreferrer' : undefined}
+                target={link.href.startsWith('http') ? '_blank' : undefined}
+                rel={link.href.startsWith('http') ? 'noopener noreferrer' : undefined}
                 className="text-gray-400 hover:text-white transition-colors text-sm"
               >
                 {link.label}
@@ -87,8 +86,8 @@ export default function Navbar() {
               <a
                 key={link.label}
                 href={link.href}
-                target={link.external ? '_blank' : undefined}
-                rel={link.external ? 'noopener noreferrer' : undefined}
+                target={link.href.startsWith('http') ? '_blank' : undefined}
+                rel={link.href.startsWith('http') ? 'noopener noreferrer' : undefined}
                 className="block text-gray-400 hover:text-white transition-colors text-sm"
                 onClick={() => setMobileOpen(false)}
               >
