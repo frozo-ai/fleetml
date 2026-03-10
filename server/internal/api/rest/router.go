@@ -53,7 +53,7 @@ func NewRouter(
 	r.Use(apiLimiter.Middleware)
 
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:3000", "http://localhost:8080", "https://*.fleetml.dev"},
+		AllowedOrigins:   []string{"http://localhost:3000", "http://localhost:8080", "https://*.fleetml.dev", "https://*.up.railway.app"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
 		ExposedHeaders:   []string{"Link"},
