@@ -234,7 +234,7 @@ func main() {
 	}
 
 	grpcServer := grpclib.NewServer()
-	grpcHandler := grpc.NewHandler(fleetMgr, orchestrator, registry, s3Store, metricsProcessor, log)
+	grpcHandler := grpc.NewHandler(fleetMgr, orchestrator, registry, s3Store, metricsProcessor, pool, log)
 	grpcHandler.RegisterService(grpcServer)
 
 	go func() {

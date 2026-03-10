@@ -1,63 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-
-const steps = [
-  {
-    id: 'cli',
-    title: 'Install the FleetML CLI',
-    description: 'The CLI is how you deploy models, manage fleets, and check device status from your terminal.',
-    commands: [
-      {
-        label: 'macOS / Linux',
-        code: 'curl -sSL https://raw.githubusercontent.com/ashish-frozo/fleetML/main/scripts/install.sh | bash',
-      },
-    ],
-    verify: {
-      label: 'Verify installation',
-      code: 'fleetml version',
-    },
-  },
-  {
-    id: 'connect',
-    title: 'Connect the CLI to your account',
-    description: 'This links your local CLI to FleetML Cloud so you can manage your fleet.',
-    commands: [
-      {
-        label: 'Authenticate',
-        code: 'fleetml init --cloud',
-      },
-    ],
-    note: 'Enter the email and password you used to sign up. The CLI will save your credentials locally.',
-  },
-  {
-    id: 'agent',
-    title: 'Install the agent on your edge device',
-    description: 'SSH into your edge device (Jetson, Raspberry Pi, Intel NUC, etc.) and run:',
-    commands: [
-      {
-        label: 'On your edge device',
-        code: 'curl -sSL https://raw.githubusercontent.com/ashish-frozo/fleetML/main/scripts/install-agent.sh | sh',
-      },
-    ],
-    note: 'The agent is a lightweight (~15MB) binary that runs on the device. It connects to FleetML Cloud, receives model updates, and reports health metrics.',
-  },
-  {
-    id: 'deploy',
-    title: 'Deploy your first model',
-    description: 'Push an ONNX model to your fleet. FleetML handles compilation, distribution, and zero-downtime swap.',
-    commands: [
-      {
-        label: 'Deploy with canary rollout',
-        code: 'fleetml deploy model.onnx --fleet default --canary 5,50,100',
-      },
-      {
-        label: 'Check status',
-        code: 'fleetml status --fleet default',
-      },
-    ],
-    note: 'Don\'t have an ONNX model yet? Export from PyTorch with torch.onnx.export() or from TensorFlow with tf2onnx.',
-  },
-];
+import { api } from '../api/client';
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -81,7 +24,7 @@ function CopyButton({ text }: { text: string }) {
 function CodeBlock({ code }: { code: string }) {
   return (
     <div className="relative group">
-      <pre className="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm font-mono overflow-x-auto">
+      <pre className="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm font-mono overflow-x-auto whitespace-pre-wrap break-all">
         <span className="text-gray-500 select-none">$ </span>
         {code}
       </pre>
@@ -90,9 +33,77 @@ function CodeBlock({ code }: { code: string }) {
   );
 }
 
+function APIKeyDisplay({ apiKey, onRegenerate }: { apiKey: string; onRegenerate: () => void }) {
+  const [visible, setVisible] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(apiKey);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const masked = apiKey ? apiKey.slice(0, 8) + '••••••••••••••••••••' : '—';
+
+  return (
+    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-medium text-gray-700">Your API Key</span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setVisible(!visible)}
+            className="text-xs text-gray-500 hover:text-gray-700"
+          >
+            {visible ? 'Hide' : 'Reveal'}
+          </button>
+          <button
+            onClick={handleCopy}
+            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+          >
+            {copied ? 'Copied!' : 'Copy'}
+          </button>
+        </div>
+      </div>
+      <code className="block bg-white border border-gray-200 rounded px-3 py-2 text-sm font-mono text-gray-800 break-all">
+        {visible ? apiKey : masked}
+      </code>
+      <div className="mt-2 flex items-center justify-between">
+        <p className="text-xs text-gray-400">
+          Keep this key secret. It authenticates your devices to your account.
+        </p>
+        <button
+          onClick={onRegenerate}
+          className="text-xs text-red-500 hover:text-red-700"
+        >
+          Regenerate
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function OnboardingPage() {
   const { user } = useAuth();
+  const [apiKey, setApiKey] = useState('');
+  const [apiKeyLoading, setApiKeyLoading] = useState(true);
   const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    api.getAPIKey()
+      .then((data) => setApiKey(data.api_key))
+      .catch(() => {})
+      .finally(() => setApiKeyLoading(false));
+  }, []);
+
+  const handleRegenerate = async () => {
+    if (!confirm('Regenerate API key? All existing agents will need to be reconfigured.')) return;
+    try {
+      const data = await api.regenerateAPIKey();
+      setApiKey(data.api_key);
+    } catch {
+      alert('Failed to regenerate API key');
+    }
+  };
 
   const toggleStep = (id: string) => {
     setCompletedSteps((prev) => {
@@ -102,6 +113,87 @@ export default function OnboardingPage() {
       return next;
     });
   };
+
+  const steps = [
+    {
+      id: 'cli',
+      title: 'Install the FleetML CLI',
+      description: 'The CLI is how you deploy models, manage fleets, and check device status from your terminal.',
+      content: (
+        <div className="space-y-3">
+          <CodeBlock code="curl -sSL https://raw.githubusercontent.com/ashish-frozo/fleetML/main/scripts/install.sh | bash" />
+          <p className="text-xs text-gray-400">Verify installation:</p>
+          <CodeBlock code="fleetml version" />
+        </div>
+      ),
+    },
+    {
+      id: 'connect',
+      title: 'Connect the CLI to your account',
+      description: 'This links your local CLI to FleetML Cloud so you can manage your fleet.',
+      content: (
+        <div className="space-y-3">
+          <CodeBlock code="fleetml init --cloud" />
+          <p className="text-xs text-gray-400">
+            Enter the email and password you used to sign up. The CLI will save your credentials locally.
+          </p>
+        </div>
+      ),
+    },
+    {
+      id: 'apikey',
+      title: 'Copy your API key',
+      description: 'Your devices use this key to authenticate with your FleetML account. You\'ll need it in the next step.',
+      content: (
+        <div className="space-y-3">
+          {apiKeyLoading ? (
+            <div className="text-gray-400 text-sm">Loading API key...</div>
+          ) : apiKey ? (
+            <APIKeyDisplay apiKey={apiKey} onRegenerate={handleRegenerate} />
+          ) : (
+            <div className="text-gray-400 text-sm">
+              No API key found. This may be because your account was created before API keys were introduced.
+              <button onClick={handleRegenerate} className="ml-2 text-blue-600 hover:underline">Generate one</button>
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: 'agent',
+      title: 'Install the agent on your edge device',
+      description: 'SSH into your edge device (Jetson, Raspberry Pi, Intel NUC, etc.) and run:',
+      content: (
+        <div className="space-y-3">
+          <CodeBlock code="curl -sSL https://raw.githubusercontent.com/ashish-frozo/fleetML/main/scripts/install-agent.sh | sh" />
+          <p className="text-xs text-gray-400 font-medium mt-2">Then configure it with your API key:</p>
+          <CodeBlock code={apiKey
+            ? `export FLEETML_API_KEY="${apiKey}"\nexport FLEETML_SERVER="server-production-91d4.up.railway.app:50051"\nfleetml-agent`
+            : 'export FLEETML_API_KEY="your-api-key-here"\nexport FLEETML_SERVER="server-production-91d4.up.railway.app:50051"\nfleetml-agent'
+          } />
+          <p className="text-xs text-gray-400">
+            The agent is a lightweight (~15MB) binary that runs on the device. It connects to FleetML Cloud, receives model updates, and reports health metrics.
+          </p>
+        </div>
+      ),
+    },
+    {
+      id: 'deploy',
+      title: 'Deploy your first model',
+      description: 'Push an ONNX model to your fleet. FleetML handles compilation, distribution, and zero-downtime swap.',
+      content: (
+        <div className="space-y-3">
+          <p className="text-xs text-gray-400 font-medium">Deploy with canary rollout:</p>
+          <CodeBlock code="fleetml deploy model.onnx --fleet default --canary 5,50,100" />
+          <p className="text-xs text-gray-400 font-medium">Check status:</p>
+          <CodeBlock code="fleetml status --fleet default" />
+          <p className="text-xs text-gray-400">
+            Don't have an ONNX model yet? Export from PyTorch with torch.onnx.export() or from TensorFlow with tf2onnx.
+          </p>
+        </div>
+      ),
+    },
+  ];
 
   return (
     <div className="max-w-3xl">
@@ -134,7 +226,7 @@ export default function OnboardingPage() {
               )}
             </div>
             {i < steps.length - 1 && (
-              <div className={`w-12 h-0.5 ${completedSteps.has(s.id) ? 'bg-green-400' : 'bg-gray-200'}`} />
+              <div className={`w-8 h-0.5 ${completedSteps.has(s.id) ? 'bg-green-400' : 'bg-gray-200'}`} />
             )}
           </div>
         ))}
@@ -174,29 +266,7 @@ export default function OnboardingPage() {
                 </button>
               </div>
 
-              <div className="space-y-3">
-                {step.commands.map((cmd) => (
-                  <div key={cmd.code}>
-                    {step.commands.length > 1 && (
-                      <p className="text-xs text-gray-400 font-medium mb-1">{cmd.label}</p>
-                    )}
-                    <CodeBlock code={cmd.code} />
-                  </div>
-                ))}
-              </div>
-
-              {step.verify && (
-                <div className="mt-3">
-                  <p className="text-xs text-gray-400 font-medium mb-1">{step.verify.label}</p>
-                  <CodeBlock code={step.verify.code} />
-                </div>
-              )}
-
-              {step.note && (
-                <p className="mt-3 text-xs text-gray-400 leading-relaxed">
-                  {step.note}
-                </p>
-              )}
+              {step.content}
             </div>
           );
         })}

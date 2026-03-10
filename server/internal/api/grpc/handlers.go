@@ -14,9 +14,11 @@ import (
 	servermodel "github.com/fleetml/fleetml/server/internal/model"
 	"github.com/fleetml/fleetml/server/internal/monitor"
 	"github.com/fleetml/fleetml/server/internal/storage"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -31,11 +33,34 @@ type Handler struct {
 	registry     *servermodel.Registry
 	store        storage.ObjectStore
 	metrics      *monitor.MetricsProcessor
+	db           *pgxpool.Pool
 	logger       *zap.SugaredLogger
 }
 
-func NewHandler(fleetMgr *fleet.Manager, orchestrator *deploy.Orchestrator, registry *servermodel.Registry, store storage.ObjectStore, metrics *monitor.MetricsProcessor, logger *zap.SugaredLogger) *Handler {
-	return &Handler{fleet: fleetMgr, orchestrator: orchestrator, registry: registry, store: store, metrics: metrics, logger: logger}
+func NewHandler(fleetMgr *fleet.Manager, orchestrator *deploy.Orchestrator, registry *servermodel.Registry, store storage.ObjectStore, metrics *monitor.MetricsProcessor, db *pgxpool.Pool, logger *zap.SugaredLogger) *Handler {
+	return &Handler{fleet: fleetMgr, orchestrator: orchestrator, registry: registry, store: store, metrics: metrics, db: db, logger: logger}
+}
+
+// resolveOrgFromAPIKey extracts the API key from gRPC metadata and returns the org ID.
+func (h *Handler) resolveOrgFromAPIKey(ctx context.Context) (string, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return "", fmt.Errorf("no metadata")
+	}
+
+	keys := md.Get("x-api-key")
+	if len(keys) == 0 || keys[0] == "" {
+		return "", fmt.Errorf("no API key provided")
+	}
+
+	apiKey := keys[0]
+	var orgID string
+	err := h.db.QueryRow(ctx, `SELECT id FROM organizations WHERE api_key = $1`, apiKey).Scan(&orgID)
+	if err != nil {
+		return "", fmt.Errorf("invalid API key")
+	}
+
+	return orgID, nil
 }
 
 // RegisterService registers the handler with the gRPC server.
@@ -47,6 +72,24 @@ func (h *Handler) RegisterService(s *grpc.Server) {
 func (h *Handler) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
 	if req.DeviceInfo == nil {
 		return nil, status.Error(codes.InvalidArgument, "device_info is required")
+	}
+
+	// Validate API key and resolve org
+	orgID, err := h.resolveOrgFromAPIKey(ctx)
+	if err != nil {
+		h.logger.Warnw("device registration rejected: invalid API key", "error", err)
+		return nil, status.Error(codes.Unauthenticated, "invalid or missing API key — get your key at https://dashboard-production-e3e4.up.railway.app/dashboard/get-started")
+	}
+
+	// Check device limit for this org
+	if h.db != nil {
+		var deviceCount int
+		var deviceLimit int
+		h.db.QueryRow(ctx, `SELECT COUNT(*) FROM devices WHERE org_id = $1`, orgID).Scan(&deviceCount)
+		h.db.QueryRow(ctx, `SELECT device_limit FROM organizations WHERE id = $1`, orgID).Scan(&deviceLimit)
+		if deviceLimit > 0 && deviceCount >= deviceLimit {
+			return nil, status.Errorf(codes.ResourceExhausted, "device limit reached (%d/%d) — upgrade your plan", deviceCount, deviceLimit)
+		}
 	}
 
 	info := req.DeviceInfo
@@ -71,9 +114,15 @@ func (h *Handler) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.Re
 		return nil, status.Error(codes.Internal, "failed to register device")
 	}
 
+	// Assign device to org
+	if h.db != nil {
+		h.db.Exec(ctx, `UPDATE devices SET org_id = $1 WHERE id = $2`, orgID, device.ID)
+	}
+
 	h.logger.Infow("device registered",
 		"device_id", info.DeviceId,
 		"agent_id", device.ID,
+		"org_id", orgID,
 		"arch", info.Arch,
 		"gpu", info.GpuType,
 	)

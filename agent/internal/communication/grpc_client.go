@@ -15,6 +15,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -25,6 +26,7 @@ type GRPCClient struct {
 	stream     pb.AgentService_HeartbeatClient
 	logger     *zap.SugaredLogger
 	address    string
+	apiKey     string // API key for authentication
 	restURL    string // HTTP base URL for REST endpoints (log ingestion)
 	httpClient *http.Client
 }
@@ -39,6 +41,19 @@ func NewGRPCClient(address string, logger *zap.SugaredLogger) (*GRPCClient, erro
 			Timeout: 10 * time.Second,
 		},
 	}, nil
+}
+
+// SetAPIKey sets the API key for authenticating with the server.
+func (c *GRPCClient) SetAPIKey(key string) {
+	c.apiKey = key
+}
+
+// withAPIKey returns a context with the API key in gRPC metadata.
+func (c *GRPCClient) withAPIKey(ctx context.Context) context.Context {
+	if c.apiKey != "" {
+		return metadata.AppendToOutgoingContext(ctx, "x-api-key", c.apiKey)
+	}
+	return ctx
 }
 
 // SetRESTURL sets the HTTP base URL used for REST-only endpoints like log ingestion.
@@ -92,7 +107,7 @@ func (c *GRPCClient) Register(ctx context.Context, info *device.Info) (string, i
 		labels[k] = v
 	}
 
-	resp, err := c.client.Register(ctx, &pb.RegisterRequest{
+	resp, err := c.client.Register(c.withAPIKey(ctx), &pb.RegisterRequest{
 		DeviceInfo: &pb.DeviceInfo{
 			DeviceId:      info.DeviceID,
 			Arch:          info.Arch,

@@ -37,6 +37,10 @@ export const api = {
     ),
   me: () => request<{ id: string; email: string; role: string; org_id: string; organization?: { id: string; name: string; slug: string; plan: string; device_limit: number; fleet_limit: number } }>('/api/v1/auth/me'),
 
+  // API Keys
+  getAPIKey: () => request<{ api_key: string }>('/api/v1/api-keys'),
+  regenerateAPIKey: () => request<{ api_key: string }>('/api/v1/api-keys/regenerate', { method: 'POST' }),
+
   // Billing
   getSubscription: () => request<{ plan: string; status: string; dodo_subscription_id?: string }>('/api/v1/billing/subscription'),
   createCheckout: (plan: string) =>

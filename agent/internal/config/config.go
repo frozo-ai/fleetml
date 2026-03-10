@@ -10,6 +10,7 @@ import (
 type Config struct {
 	DeviceID           string        `yaml:"device_id"`
 	ServerAddress      string        `yaml:"server_address"`
+	APIKey             string        `yaml:"api_key"`
 	HeartbeatInterval  time.Duration `yaml:"heartbeat_interval"`
 	ModelStorageDir    string        `yaml:"model_storage_dir"`
 	MaxModelVersions   int           `yaml:"max_model_versions"`
@@ -48,6 +49,9 @@ func Load(path string) (*Config, error) {
 	}
 	if v := os.Getenv("DEVICE_ID"); v != "" {
 		cfg.DeviceID = v
+	}
+	if v := os.Getenv("FLEETML_API_KEY"); v != "" {
+		cfg.APIKey = v
 	}
 	if v := os.Getenv("FLEETML_MODE"); v != "" {
 		cfg.Mode = v

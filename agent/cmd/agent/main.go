@@ -96,6 +96,10 @@ func main() {
 	}
 	defer grpcClient.Close()
 
+	if cfg.APIKey != "" {
+		grpcClient.SetAPIKey(cfg.APIKey)
+	}
+
 	if err := grpcClient.Connect(ctx); err != nil {
 		log.Fatalw("failed to connect to control plane", "address", cfg.ServerAddress, "error", err)
 	}

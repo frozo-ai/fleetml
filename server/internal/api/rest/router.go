@@ -75,6 +75,7 @@ func NewRouter(
 	policyHandler := NewPolicyHandler(policyEngine, logger)
 	integrationHandler := NewIntegrationHandler(integrationSvc, logger)
 	billingHandler := NewBillingHandler(billingClient, logger)
+	apiKeyHandler := NewAPIKeyHandler(db, logger)
 
 	// Strict rate limiter for auth endpoints
 	authLimiter := mw.StrictRateLimiter(logger)
@@ -99,6 +100,12 @@ func NewRouter(
 			r.Route("/billing", func(r chi.Router) {
 				r.Get("/subscription", billingHandler.GetSubscription)
 				r.Post("/checkout", billingHandler.CreateCheckout)
+			})
+
+			// API Keys
+			r.Route("/api-keys", func(r chi.Router) {
+				r.Get("/", apiKeyHandler.Get)
+				r.Post("/regenerate", apiKeyHandler.Regenerate)
 			})
 
 			// Models

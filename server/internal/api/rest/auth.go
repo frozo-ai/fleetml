@@ -1,6 +1,8 @@
 package rest
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"regexp"
@@ -13,6 +15,13 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
+
+// generateAPIKey creates a random API key with flml_ prefix.
+func generateAPIKey() string {
+	b := make([]byte, 24)
+	rand.Read(b)
+	return "flml_" + hex.EncodeToString(b)
+}
 
 // AuthHandler handles authentication endpoints.
 type AuthHandler struct {
@@ -103,12 +112,14 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	deviceLimit, fleetLimit, logRetention, features := domain.PlanLimits("free")
 	featuresJSON, _ := json.Marshal(features)
 
+	apiKey := generateAPIKey()
+
 	var orgID string
 	err = h.db.QueryRow(r.Context(), `
-		INSERT INTO organizations (name, slug, plan, device_limit, fleet_limit, log_retention_days, features)
-		VALUES ($1, $2, 'free', $3, $4, $5, $6)
+		INSERT INTO organizations (name, slug, plan, device_limit, fleet_limit, log_retention_days, features, api_key)
+		VALUES ($1, $2, 'free', $3, $4, $5, $6, $7)
 		RETURNING id`,
-		orgName, slug, deviceLimit, fleetLimit, logRetention, string(featuresJSON),
+		orgName, slug, deviceLimit, fleetLimit, logRetention, string(featuresJSON), apiKey,
 	).Scan(&orgID)
 	if err != nil {
 		h.logger.Errorw("failed to create organization", "error", err)

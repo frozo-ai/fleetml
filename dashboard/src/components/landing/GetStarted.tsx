@@ -25,7 +25,7 @@ const steps = [
   {
     step: '4',
     title: 'Install the agent on your edge device',
-    description: 'Run this on each device you want to manage (Jetson, RPi, Intel, etc.).',
+    description: 'Run this on each device, then set your API key (shown in the dashboard) to connect it to your account.',
     code: 'curl -sSL https://raw.githubusercontent.com/ashish-frozo/fleetML/main/scripts/install-agent.sh | sh',
     cta: null,
   },
