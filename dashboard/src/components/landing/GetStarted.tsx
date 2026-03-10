@@ -4,7 +4,7 @@ const steps = [
   {
     step: '1',
     title: 'Create your account',
-    description: 'Sign up for free. No credit card needed.',
+    description: 'Sign up for free. No credit card needed. You\'ll get an API key to connect your devices.',
     code: null,
     cta: { label: 'Create Free Account', to: '/signup' },
   },
@@ -13,28 +13,32 @@ const steps = [
     title: 'Install the CLI',
     description: 'One command installs the FleetML CLI on macOS or Linux.',
     code: 'curl -sSL https://raw.githubusercontent.com/ashish-frozo/fleetML/main/scripts/install.sh | bash',
-    cta: null,
   },
   {
     step: '3',
-    title: 'Connect to FleetML Cloud',
-    description: 'Authenticate with your account and you\'re ready to go.',
+    title: 'Connect the CLI to your account',
+    description: 'Authenticate with the email and password you signed up with.',
     code: 'fleetml init --cloud',
-    cta: null,
   },
   {
     step: '4',
-    title: 'Install the agent on your edge device',
-    description: 'Run this on each device, then set your API key (shown in the dashboard) to connect it to your account.',
-    code: 'curl -sSL https://raw.githubusercontent.com/ashish-frozo/fleetML/main/scripts/install-agent.sh | sh',
-    cta: null,
+    title: 'Copy your API key from the dashboard',
+    description: 'Your API key links devices to your account. Find it in the Get Started page after logging in.',
+    code: null,
+    note: 'Your API key looks like: flml_a1b2c3d4e5f6... — keep it secret.',
   },
   {
     step: '5',
+    title: 'Install the agent on your edge device',
+    description: 'SSH into your device (Jetson, RPi, Intel NUC, etc.) and run the installer, then start the agent with your API key.',
+    code: 'curl -sSL https://raw.githubusercontent.com/ashish-frozo/fleetML/main/scripts/install-agent.sh | sh',
+    code2: 'FLEETML_API_KEY=flml_your_key FLEETML_SERVER=your-server:50051 fleetml-agent',
+  },
+  {
+    step: '6',
     title: 'Deploy your first model',
-    description: 'Push an ONNX model to your fleet with canary rollout.',
+    description: 'Push an ONNX model to your fleet with canary rollout. FleetML handles compilation and distribution.',
     code: 'fleetml deploy model.onnx --fleet default --canary 5,50,100',
-    cta: null,
   },
 ];
 
@@ -74,6 +78,19 @@ export default function GetStarted() {
                       {s.code}
                     </div>
                   </div>
+                )}
+
+                {(s as any).code2 && (
+                  <div className="rounded-lg overflow-hidden border border-white/10 bg-gray-950 mt-2">
+                    <div className="px-4 py-3 font-mono text-sm text-gray-300 overflow-x-auto">
+                      <span className="text-gray-500 select-none">$ </span>
+                      {(s as any).code2}
+                    </div>
+                  </div>
+                )}
+
+                {(s as any).note && (
+                  <p className="text-xs text-gray-600 mt-2 italic">{(s as any).note}</p>
                 )}
 
                 {s.cta && (
