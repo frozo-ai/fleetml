@@ -43,8 +43,8 @@ venv/
 # Docker
 docker-compose.override.yml
 
-# Proto generated
-proto/gen/
+# Proto generated (committed for Docker builds)
+# proto/gen/
 
 # MinIO data
 minio-data/
