@@ -47,6 +47,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.logger.Errorw("register: failed to decode body", "error", err, "content_type", r.Header.Get("Content-Type"), "content_length", r.ContentLength)
 		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
 		return
 	}
