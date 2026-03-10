@@ -5,14 +5,13 @@ import LogoCloud from '../components/landing/LogoCloud';
 import Problem from '../components/landing/Problem';
 import HowItWorks from '../components/landing/HowItWorks';
 import Features from '../components/landing/Features';
+import Pricing from '../components/landing/Pricing';
 import Stats from '../components/landing/Stats';
 import MidPageCTA from '../components/landing/MidPageCTA';
 import CodeExample from '../components/landing/CodeExample';
 import UseCases from '../components/landing/UseCases';
 import Comparison from '../components/landing/Comparison';
-import Pricing from '../components/landing/Pricing';
-import InlineEmailCapture from '../components/landing/InlineEmailCapture';
-import Architecture from '../components/landing/Architecture';
+import GetStarted from '../components/landing/GetStarted';
 import FAQ from '../components/landing/FAQ';
 import OpenSourceCTA from '../components/landing/OpenSourceCTA';
 import Footer from '../components/landing/Footer';
@@ -40,14 +39,13 @@ export default function LandingPage() {
       <Problem />
       <HowItWorks />
       <Features />
+      <Pricing />
       <Stats />
       <MidPageCTA />
       <CodeExample />
       <UseCases />
       <Comparison />
-      <Pricing />
-      <InlineEmailCapture />
-      <Architecture />
+      <GetStarted />
       <FAQ />
       <OpenSourceCTA />
       <Footer />

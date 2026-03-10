@@ -8,9 +8,9 @@ const productLinks = [
 ];
 
 const resourceLinks = [
-  { label: 'Documentation', href: 'https://github.com/ashish-frozo/fleetML#readme', external: true },
-  { label: 'GitHub', href: 'https://github.com/ashish-frozo/fleetML', external: true },
-  { label: 'API Reference', href: 'https://github.com/ashish-frozo/fleetML/blob/main/docs/api-reference.md', external: true },
+  { label: 'Get Started', href: '#get-started', external: false },
+  { label: 'Pricing', href: '#pricing', external: false },
+  { label: 'FAQ', href: '#faq', external: false },
 ];
 
 export default function Footer() {

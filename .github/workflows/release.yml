@@ -44,9 +44,14 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
           cd cli
           go build -ldflags="-s -w -X github.com/fleetml/fleetml/cli/cmd.Version=${{ github.ref_name }} -X github.com/fleetml/fleetml/cli/cmd.GitCommit=${{ github.sha }} -X github.com/fleetml/fleetml/cli/cmd.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            -o ../dist/fleetml-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/fleetml
+            -o ../dist/fleetml ./cmd/fleetml
+          cd ../dist
+          tar -czf "fleetml_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz" fleetml
+          rm fleetml
 
       - name: Build server (linux only)
         if: matrix.goos == 'linux' && matrix.goarch == 'amd64'
@@ -62,48 +67,8 @@ jobs:
           name: binaries-${{ matrix.goos }}-${{ matrix.goarch }}
           path: dist/
 
-  docker:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Build and push agent
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: agent/Dockerfile
-          push: true
-          tags: |
-            fleetml/agent:${{ github.ref_name }}
-            fleetml/agent:latest
-          platforms: linux/amd64,linux/arm64
-      - name: Build and push server
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: server/Dockerfile
-          push: true
-          tags: |
-            fleetml/server:${{ github.ref_name }}
-            fleetml/server:latest
-      - name: Build and push dashboard
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: dashboard/Dockerfile
-          push: true
-          tags: |
-            fleetml/dashboard:${{ github.ref_name }}
-            fleetml/dashboard:latest
-
   release:
-    needs: [build, docker]
+    needs: [build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -112,13 +77,15 @@ jobs:
         with:
           path: dist/
           merge-multiple: true
+      - name: List release assets
+        run: ls -la dist/
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           generate_release_notes: true
           files: |
             dist/agent-*
-            dist/fleetml-*
+            dist/fleetml_*
             dist/server-*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

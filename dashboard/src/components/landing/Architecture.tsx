@@ -24,7 +24,7 @@ export default function Architecture() {
                 <h3 className="text-lg font-semibold text-white">Control Plane</h3>
               </div>
               <div className="space-y-2">
-                {['REST API (:8080)', 'gRPC Server (:50051)', 'PostgreSQL 16', 'MinIO (S3)', 'Prometheus'].map((item) => (
+                {['REST & gRPC APIs', 'Fleet Management', 'Model Registry', 'Deployment Orchestrator', 'Monitoring & Alerts'].map((item) => (
                   <div key={item} className="flex items-center gap-2 text-sm text-gray-400">
                     <span className="w-1.5 h-1.5 rounded-full bg-blue-400/60" />
                     {item}
@@ -52,7 +52,7 @@ export default function Architecture() {
                 <h3 className="text-lg font-semibold text-white">Network</h3>
               </div>
               <div className="space-y-2">
-                {['gRPC (primary)', 'MQTT (fallback)', 'mTLS (TLS 1.3)', 'NATS 2.10+', 'Store & Forward'].map((item) => (
+                {['Encrypted by default', 'Auto-failover protocols', 'Store & forward offline', 'Sub-second latency', 'Works behind firewalls'].map((item) => (
                   <div key={item} className="flex items-center gap-2 text-sm text-gray-400">
                     <span className="w-1.5 h-1.5 rounded-full bg-purple-400/60" />
                     {item}
@@ -79,7 +79,7 @@ export default function Architecture() {
                 <h3 className="text-lg font-semibold text-white">Edge Fleet</h3>
               </div>
               <div className="space-y-2">
-                {['Go Agent (~15MB)', 'ONNX Runtime', 'SQLite Local Store', 'Heartbeat Loop', 'Hot-Swap Engine'].map((item) => (
+                {['Lightweight agent (~15MB)', 'Auto chip detection', 'Runs fully offline', 'Health monitoring', 'Zero-downtime updates'].map((item) => (
                   <div key={item} className="flex items-center gap-2 text-sm text-gray-400">
                     <span className="w-1.5 h-1.5 rounded-full bg-cyan-400/60" />
                     {item}

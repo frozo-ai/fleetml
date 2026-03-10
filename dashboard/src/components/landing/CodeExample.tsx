@@ -57,7 +57,7 @@ export default function CodeExample() {
                 <span className="code-comment"># fleetml-agent.yaml</span>{'\n'}
                 <span className="code-keyword">server</span><span className="text-gray-500">:</span>{'\n'}
                 <span className="code-flag">  endpoint</span><span className="text-gray-500">:</span>
-                <span className="code-string"> "grpc://control.fleetml.io:50051"</span>{'\n'}
+                <span className="code-string"> "grpc://your-server:50051"</span>{'\n'}
                 <span className="code-flag">  tls</span><span className="text-gray-500">:</span>
                 <span className="code-value"> true</span>{'\n'}
                 {'\n'}
