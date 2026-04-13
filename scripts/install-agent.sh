@@ -34,7 +34,8 @@ case "$ARCH" in
     x86_64)  ARCH="amd64" ;;
     aarch64) ARCH="arm64" ;;
     arm64)   ARCH="arm64" ;;
-    armv7l)  ARCH="arm64" ;;
+    armv7l)  ARCH="armv6" ;;
+    armv6l)  ARCH="armv6" ;;
     *)       err "Unsupported architecture: $ARCH" ;;
 esac
 
