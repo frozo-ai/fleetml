@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -37,6 +38,7 @@ type JWTService struct {
 	expiry        time.Duration
 	refreshExpiry time.Duration
 	revokedTokens map[string]time.Time // token ID -> revoked at
+	mu            sync.RWMutex
 }
 
 func NewJWTService(secret string, expiry time.Duration) *JWTService {
@@ -139,8 +141,8 @@ func (j *JWTService) AuthMiddleware(next http.Handler) http.Handler {
 }
 
 // GenerateTokenPair creates both access and refresh tokens.
-func (j *JWTService) GenerateTokenPair(userID, email, role string) (*TokenPair, error) {
-	accessToken, expiresAt, err := j.GenerateToken(userID, email, role)
+func (j *JWTService) GenerateTokenPair(userID, email, role string, orgID ...string) (*TokenPair, error) {
+	accessToken, expiresAt, err := j.GenerateToken(userID, email, role, orgID...)
 	if err != nil {
 		return nil, err
 	}
@@ -156,6 +158,9 @@ func (j *JWTService) GenerateTokenPair(userID, email, role string) (*TokenPair, 
 			Issuer:    "fleetml",
 			Subject:   "refresh",
 		},
+	}
+	if len(orgID) > 0 && orgID[0] != "" {
+		refreshClaims.OrgID = orgID[0]
 	}
 	refreshTokenObj := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
 	refreshToken, err := refreshTokenObj.SignedString(j.secret)
@@ -182,7 +187,7 @@ func (j *JWTService) RefreshAccessToken(refreshToken string) (*TokenPair, error)
 		return nil, fmt.Errorf("token is not a refresh token")
 	}
 
-	return j.GenerateTokenPair(claims.UserID, claims.Email, claims.Role)
+	return j.GenerateTokenPair(claims.UserID, claims.Email, claims.Role, claims.OrgID)
 }
 
 // RevokeToken marks a token as revoked.
@@ -192,14 +197,43 @@ func (j *JWTService) RevokeToken(tokenStr string) error {
 		return err
 	}
 	_ = claims
+	j.mu.Lock()
 	j.revokedTokens[tokenStr] = time.Now()
+	j.mu.Unlock()
 	return nil
 }
 
 // IsRevoked checks if a token has been revoked.
 func (j *JWTService) IsRevoked(tokenStr string) bool {
+	j.mu.RLock()
+	defer j.mu.RUnlock()
 	_, revoked := j.revokedTokens[tokenStr]
 	return revoked
+}
+
+// StartRevocationCleanup periodically removes expired tokens from the revocation list.
+func (j *JWTService) StartRevocationCleanup(ctx context.Context) {
+	ticker := time.NewTicker(15 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			j.cleanupExpiredRevocations()
+		}
+	}
+}
+
+func (j *JWTService) cleanupExpiredRevocations() {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	now := time.Now()
+	for token, revokedAt := range j.revokedTokens {
+		if now.Sub(revokedAt) > j.expiry+time.Hour {
+			delete(j.revokedTokens, token)
+		}
+	}
 }
 
 // ValidateAPIKey checks if the provided API key is valid.

@@ -86,6 +86,14 @@ func (h *BillingHandler) Webhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Verify webhook signature
+	signature := r.Header.Get("X-Dodo-Signature")
+	if err := h.client.VerifyWebhookSignature(body, signature); err != nil {
+		h.logger.Warnw("webhook signature verification failed", "error", err)
+		http.Error(w, `{"error":"invalid signature"}`, http.StatusUnauthorized)
+		return
+	}
+
 	// Parse the webhook event
 	var event struct {
 		Type string          `json:"type"`

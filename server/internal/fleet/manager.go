@@ -56,8 +56,8 @@ func (m *Manager) RegisterDevice(ctx context.Context, info *domain.Device) (*dom
 	return &d, nil
 }
 
-// GetDevice returns a device by its device_id.
-func (m *Manager) GetDevice(ctx context.Context, deviceID string) (*domain.Device, error) {
+// GetDevice returns a device by its device_id, scoped to an organization.
+func (m *Manager) GetDevice(ctx context.Context, orgID, deviceID string) (*domain.Device, error) {
 	var d domain.Device
 	var labelsJSON []byte
 
@@ -65,7 +65,7 @@ func (m *Manager) GetDevice(ctx context.Context, deviceID string) (*domain.Devic
 		SELECT id, device_id, name, status, arch, gpu_type, runtime, ram_mb, disk_gb, os,
 			   hardware_model, labels, fleet_id, last_heartbeat, registered_at, updated_at,
 			   cpu_percent, gpu_percent, ram_mb_used, disk_percent, temperature_c, uptime_hours
-		FROM devices WHERE device_id = $1`, deviceID,
+		FROM devices WHERE device_id = $1 AND org_id = $2`, deviceID, orgID,
 	).Scan(
 		&d.ID, &d.DeviceID, &d.Name, &d.Status, &d.Arch, &d.GPUType,
 		&d.Runtime, &d.RAMMB, &d.DiskGB, &d.OS, &d.HardwareModel,
@@ -86,15 +86,15 @@ func (m *Manager) GetDevice(ctx context.Context, deviceID string) (*domain.Devic
 	return &d, nil
 }
 
-// ListDevices lists devices with optional filters.
-func (m *Manager) ListDevices(ctx context.Context, filter domain.DeviceFilter) ([]*domain.Device, int, error) {
+// ListDevices lists devices with optional filters, scoped to an organization.
+func (m *Manager) ListDevices(ctx context.Context, orgID string, filter domain.DeviceFilter) ([]*domain.Device, int, error) {
 	query := `SELECT id, device_id, name, status, arch, gpu_type, runtime, ram_mb, disk_gb, os,
 			         hardware_model, labels, fleet_id, last_heartbeat, registered_at, updated_at,
 			         cpu_percent, gpu_percent, ram_mb_used, disk_percent, temperature_c, uptime_hours
-			  FROM devices WHERE 1=1`
-	countQuery := `SELECT COUNT(*) FROM devices WHERE 1=1`
-	args := []interface{}{}
-	argIdx := 1
+			  FROM devices WHERE org_id = $1`
+	countQuery := `SELECT COUNT(*) FROM devices WHERE org_id = $1`
+	args := []interface{}{orgID}
+	argIdx := 2
 
 	if filter.Status != "" {
 		query += fmt.Sprintf(" AND status = $%d", argIdx)
@@ -177,16 +177,16 @@ func (m *Manager) UpdateDeviceStatus(ctx context.Context, deviceID string, statu
 	return nil
 }
 
-// CreateFleet creates a new device fleet.
-func (m *Manager) CreateFleet(ctx context.Context, name, description string, labels map[string]string) (*domain.Fleet, error) {
+// CreateFleet creates a new device fleet, scoped to an organization.
+func (m *Manager) CreateFleet(ctx context.Context, orgID, name, description string, labels map[string]string) (*domain.Fleet, error) {
 	labelsJSON, _ := json.Marshal(labels)
 
 	var f domain.Fleet
 	err := m.db.QueryRow(ctx, `
-		INSERT INTO fleets (name, description, labels)
-		VALUES ($1, $2, $3)
+		INSERT INTO fleets (name, description, labels, org_id)
+		VALUES ($1, $2, $3, $4)
 		RETURNING id, name, description, created_at, updated_at`,
-		name, description, labelsJSON,
+		name, description, labelsJSON, orgID,
 	).Scan(&f.ID, &f.Name, &f.Description, &f.CreatedAt, &f.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("create fleet: %w", err)
@@ -196,11 +196,11 @@ func (m *Manager) CreateFleet(ctx context.Context, name, description string, lab
 	return &f, nil
 }
 
-// AssignDeviceToFleet adds a device to a fleet.
-func (m *Manager) AssignDeviceToFleet(ctx context.Context, deviceID string, fleetID string) error {
+// AssignDeviceToFleet adds a device to a fleet, scoped to an organization.
+func (m *Manager) AssignDeviceToFleet(ctx context.Context, orgID, deviceID string, fleetID string) error {
 	_, err := m.db.Exec(ctx, `
 		UPDATE devices SET fleet_id = $2, updated_at = NOW()
-		WHERE device_id = $1`, deviceID, fleetID,
+		WHERE device_id = $1 AND org_id = $3`, deviceID, fleetID, orgID,
 	)
 	if err != nil {
 		return fmt.Errorf("assign device to fleet: %w", err)
@@ -208,25 +208,25 @@ func (m *Manager) AssignDeviceToFleet(ctx context.Context, deviceID string, flee
 	return nil
 }
 
-// SelectDevices selects devices matching a deployment target.
-func (m *Manager) SelectDevices(ctx context.Context, targetType, targetID string, targetLabels map[string]string) ([]*domain.Device, error) {
+// SelectDevices selects devices matching a deployment target, scoped to an organization.
+func (m *Manager) SelectDevices(ctx context.Context, orgID, targetType, targetID string, targetLabels map[string]string) ([]*domain.Device, error) {
 	var query string
 	var args []interface{}
 
 	switch targetType {
 	case "fleet":
 		query = `SELECT id, device_id, name, status, arch, gpu_type, runtime, ram_mb, disk_gb, os, hardware_model, labels
-				 FROM devices WHERE fleet_id = $1 AND status != 'decommissioned'`
-		args = []interface{}{targetID}
+				 FROM devices WHERE fleet_id = $1 AND status != 'decommissioned' AND org_id = $2`
+		args = []interface{}{targetID, orgID}
 	case "device":
 		query = `SELECT id, device_id, name, status, arch, gpu_type, runtime, ram_mb, disk_gb, os, hardware_model, labels
-				 FROM devices WHERE device_id = $1`
-		args = []interface{}{targetID}
+				 FROM devices WHERE device_id = $1 AND org_id = $2`
+		args = []interface{}{targetID, orgID}
 	case "labels":
 		labelsJSON, _ := json.Marshal(targetLabels)
 		query = `SELECT id, device_id, name, status, arch, gpu_type, runtime, ram_mb, disk_gb, os, hardware_model, labels
-				 FROM devices WHERE labels @> $1 AND status != 'decommissioned'`
-		args = []interface{}{labelsJSON}
+				 FROM devices WHERE labels @> $1 AND status != 'decommissioned' AND org_id = $2`
+		args = []interface{}{labelsJSON, orgID}
 	default:
 		return nil, fmt.Errorf("unknown target type: %s", targetType)
 	}
@@ -257,11 +257,11 @@ func (m *Manager) SelectDevices(ctx context.Context, targetType, targetID string
 	return devices, nil
 }
 
-// ListFleets lists all fleets.
-func (m *Manager) ListFleets(ctx context.Context) ([]*domain.Fleet, error) {
+// ListFleets lists all fleets, scoped to an organization.
+func (m *Manager) ListFleets(ctx context.Context, orgID string) ([]*domain.Fleet, error) {
 	rows, err := m.db.Query(ctx, `
 		SELECT id, name, description, labels, created_at, updated_at
-		FROM fleets ORDER BY name`)
+		FROM fleets WHERE org_id = $1 ORDER BY name`, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("list fleets: %w", err)
 	}
@@ -284,41 +284,41 @@ func (m *Manager) ListFleets(ctx context.Context) ([]*domain.Fleet, error) {
 	return fleets, nil
 }
 
-// UpdateFleet updates a fleet's name, description, and/or labels.
-func (m *Manager) UpdateFleet(ctx context.Context, id string, name *string, description *string, labels map[string]string) (*domain.Fleet, error) {
+// UpdateFleet updates a fleet's name, description, and/or labels, scoped to an organization.
+func (m *Manager) UpdateFleet(ctx context.Context, orgID, id string, name *string, description *string, labels map[string]string) (*domain.Fleet, error) {
 	// Build dynamic update
 	if name != nil {
-		_, err := m.db.Exec(ctx, `UPDATE fleets SET name = $2, updated_at = NOW() WHERE id = $1`, id, *name)
+		_, err := m.db.Exec(ctx, `UPDATE fleets SET name = $2, updated_at = NOW() WHERE id = $1 AND org_id = $3`, id, *name, orgID)
 		if err != nil {
 			return nil, fmt.Errorf("update fleet name: %w", err)
 		}
 	}
 	if description != nil {
-		_, err := m.db.Exec(ctx, `UPDATE fleets SET description = $2, updated_at = NOW() WHERE id = $1`, id, *description)
+		_, err := m.db.Exec(ctx, `UPDATE fleets SET description = $2, updated_at = NOW() WHERE id = $1 AND org_id = $3`, id, *description, orgID)
 		if err != nil {
 			return nil, fmt.Errorf("update fleet description: %w", err)
 		}
 	}
 	if labels != nil {
 		labelsJSON, _ := json.Marshal(labels)
-		_, err := m.db.Exec(ctx, `UPDATE fleets SET labels = $2, updated_at = NOW() WHERE id = $1`, id, labelsJSON)
+		_, err := m.db.Exec(ctx, `UPDATE fleets SET labels = $2, updated_at = NOW() WHERE id = $1 AND org_id = $3`, id, labelsJSON, orgID)
 		if err != nil {
 			return nil, fmt.Errorf("update fleet labels: %w", err)
 		}
 	}
 
-	return m.GetFleet(ctx, id)
+	return m.GetFleet(ctx, orgID, id)
 }
 
-// DeleteFleet deletes a fleet and unassigns all devices from it.
-func (m *Manager) DeleteFleet(ctx context.Context, id string) error {
+// DeleteFleet deletes a fleet and unassigns all devices from it, scoped to an organization.
+func (m *Manager) DeleteFleet(ctx context.Context, orgID, id string) error {
 	// Unassign devices from fleet first
-	_, err := m.db.Exec(ctx, `UPDATE devices SET fleet_id = NULL, updated_at = NOW() WHERE fleet_id = $1`, id)
+	_, err := m.db.Exec(ctx, `UPDATE devices SET fleet_id = NULL, updated_at = NOW() WHERE fleet_id = $1 AND org_id = $2`, id, orgID)
 	if err != nil {
 		return fmt.Errorf("unassign fleet devices: %w", err)
 	}
 
-	_, err = m.db.Exec(ctx, `DELETE FROM fleets WHERE id = $1`, id)
+	_, err = m.db.Exec(ctx, `DELETE FROM fleets WHERE id = $1 AND org_id = $2`, id, orgID)
 	if err != nil {
 		return fmt.Errorf("delete fleet: %w", err)
 	}
@@ -335,8 +335,8 @@ type FleetStats struct {
 	ArchCounts     map[string]int `json:"arch_counts"`
 }
 
-// GetFleetStats returns aggregated statistics for a fleet.
-func (m *Manager) GetFleetStats(ctx context.Context, fleetID string) (*FleetStats, error) {
+// GetFleetStats returns aggregated statistics for a fleet, scoped to an organization.
+func (m *Manager) GetFleetStats(ctx context.Context, orgID, fleetID string) (*FleetStats, error) {
 	stats := &FleetStats{
 		RuntimeCounts: map[string]int{},
 		ArchCounts:    map[string]int{},
@@ -344,7 +344,7 @@ func (m *Manager) GetFleetStats(ctx context.Context, fleetID string) (*FleetStat
 
 	// Status counts
 	rows, err := m.db.Query(ctx,
-		`SELECT status, COUNT(*) FROM devices WHERE fleet_id = $1 GROUP BY status`, fleetID)
+		`SELECT status, COUNT(*) FROM devices WHERE fleet_id = $1 AND org_id = $2 GROUP BY status`, fleetID, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("fleet stats: %w", err)
 	}
@@ -371,7 +371,7 @@ func (m *Manager) GetFleetStats(ctx context.Context, fleetID string) (*FleetStat
 
 	// Runtime counts
 	rows2, err := m.db.Query(ctx,
-		`SELECT runtime, COUNT(*) FROM devices WHERE fleet_id = $1 AND runtime != '' GROUP BY runtime`, fleetID)
+		`SELECT runtime, COUNT(*) FROM devices WHERE fleet_id = $1 AND org_id = $2 AND runtime != '' GROUP BY runtime`, fleetID, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("fleet runtime stats: %w", err)
 	}
@@ -388,7 +388,7 @@ func (m *Manager) GetFleetStats(ctx context.Context, fleetID string) (*FleetStat
 
 	// Arch counts
 	rows3, err := m.db.Query(ctx,
-		`SELECT arch, COUNT(*) FROM devices WHERE fleet_id = $1 AND arch != '' GROUP BY arch`, fleetID)
+		`SELECT arch, COUNT(*) FROM devices WHERE fleet_id = $1 AND org_id = $2 AND arch != '' GROUP BY arch`, fleetID, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("fleet arch stats: %w", err)
 	}
@@ -406,48 +406,48 @@ func (m *Manager) GetFleetStats(ctx context.Context, fleetID string) (*FleetStat
 	return stats, nil
 }
 
-// UpdateDeviceLabels merges labels onto a device (add/overwrite, not delete).
-func (m *Manager) UpdateDeviceLabels(ctx context.Context, deviceID string, labels map[string]string) error {
+// UpdateDeviceLabels merges labels onto a device (add/overwrite, not delete), scoped to an organization.
+func (m *Manager) UpdateDeviceLabels(ctx context.Context, orgID, deviceID string, labels map[string]string) error {
 	labelsJSON, _ := json.Marshal(labels)
 	_, err := m.db.Exec(ctx,
 		`UPDATE devices SET labels = COALESCE(labels, '{}'::jsonb) || $2::jsonb, updated_at = NOW()
-		WHERE device_id = $1`, deviceID, labelsJSON)
+		WHERE device_id = $1 AND org_id = $3`, deviceID, labelsJSON, orgID)
 	if err != nil {
 		return fmt.Errorf("update device labels: %w", err)
 	}
 	return nil
 }
 
-// BulkAssignByLabels assigns all devices matching label selector to a fleet.
-func (m *Manager) BulkAssignByLabels(ctx context.Context, fleetID string, labels map[string]string) (int, error) {
+// BulkAssignByLabels assigns all devices matching label selector to a fleet, scoped to an organization.
+func (m *Manager) BulkAssignByLabels(ctx context.Context, orgID, fleetID string, labels map[string]string) (int, error) {
 	labelsJSON, _ := json.Marshal(labels)
 	tag, err := m.db.Exec(ctx,
 		`UPDATE devices SET fleet_id = $1, updated_at = NOW()
-		WHERE labels @> $2 AND (fleet_id IS NULL OR fleet_id != $1)`, fleetID, labelsJSON)
+		WHERE labels @> $2 AND (fleet_id IS NULL OR fleet_id != $1) AND org_id = $3`, fleetID, labelsJSON, orgID)
 	if err != nil {
 		return 0, fmt.Errorf("bulk assign by labels: %w", err)
 	}
 	return int(tag.RowsAffected()), nil
 }
 
-// RemoveDeviceFromFleet removes a device from its fleet.
-func (m *Manager) RemoveDeviceFromFleet(ctx context.Context, deviceID string) error {
+// RemoveDeviceFromFleet removes a device from its fleet, scoped to an organization.
+func (m *Manager) RemoveDeviceFromFleet(ctx context.Context, orgID, deviceID string) error {
 	_, err := m.db.Exec(ctx,
-		`UPDATE devices SET fleet_id = NULL, updated_at = NOW() WHERE device_id = $1`, deviceID)
+		`UPDATE devices SET fleet_id = NULL, updated_at = NOW() WHERE device_id = $1 AND org_id = $2`, deviceID, orgID)
 	if err != nil {
 		return fmt.Errorf("remove device from fleet: %w", err)
 	}
 	return nil
 }
 
-// GetFleet returns a fleet by ID.
-func (m *Manager) GetFleet(ctx context.Context, id string) (*domain.Fleet, error) {
+// GetFleet returns a fleet by ID, scoped to an organization.
+func (m *Manager) GetFleet(ctx context.Context, orgID, id string) (*domain.Fleet, error) {
 	var f domain.Fleet
 	var labelsJSON []byte
 
 	err := m.db.QueryRow(ctx, `
 		SELECT id, name, description, labels, created_at, updated_at
-		FROM fleets WHERE id = $1`, id,
+		FROM fleets WHERE id = $1 AND org_id = $2`, id, orgID,
 	).Scan(&f.ID, &f.Name, &f.Description, &labelsJSON, &f.CreatedAt, &f.UpdatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {

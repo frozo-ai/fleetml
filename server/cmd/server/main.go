@@ -74,6 +74,15 @@ func main() {
 		"grpc_port", cfg.Server.GRPCPort,
 	)
 
+	// Reject insecure JWT secret in non-dev environments
+	if cfg.Auth.JWTSecret == "changeme" || len(cfg.Auth.JWTSecret) < 16 {
+		if os.Getenv("FLEETML_ENV") != "development" && os.Getenv("FLEETML_ENV") != "" {
+			log.Fatalw("FATAL: JWT_SECRET is insecure — set a strong secret (>=16 chars) in production")
+		}
+		log.Warnw("WARNING: JWT_SECRET is insecure — set JWT_SECRET env var before deploying to production",
+			"secret_length", len(cfg.Auth.JWTSecret))
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -133,6 +142,7 @@ func main() {
 
 	// 5. Initialize services
 	jwtService := auth.NewJWTService(cfg.Auth.JWTSecret, cfg.Auth.JWTExpiry)
+	go jwtService.StartRevocationCleanup(ctx)
 	fleetMgr := fleet.NewManager(pool)
 	registry := model.NewRegistry(pool, s3Store)
 	canaryMgr := deploy.NewCanaryManager(pool, log)
@@ -198,7 +208,7 @@ func main() {
 		Addr:         restAddr,
 		Handler:      router,
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		WriteTimeout: 0,
 		IdleTimeout:  60 * time.Second,
 	}
 
@@ -233,8 +243,11 @@ func main() {
 		log.Fatalw("failed to listen for gRPC", "address", grpcAddr, "error", err)
 	}
 
-	grpcServer := grpclib.NewServer()
 	grpcHandler := grpc.NewHandler(fleetMgr, orchestrator, registry, s3Store, metricsProcessor, pool, log)
+	grpcServer := grpclib.NewServer(
+		grpclib.UnaryInterceptor(grpcHandler.APIKeyUnaryInterceptor()),
+		grpclib.StreamInterceptor(grpcHandler.APIKeyStreamInterceptor()),
+	)
 	grpcHandler.RegisterService(grpcServer)
 
 	go func() {

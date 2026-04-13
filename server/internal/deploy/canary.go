@@ -104,7 +104,7 @@ func (cm *CanaryManager) SelectCanaryDevices(ctx context.Context, deploymentID s
 	rows, err := cm.db.Query(ctx, `
 		SELECT dds.device_id FROM deployment_device_status dds
 		JOIN devices d ON d.id = dds.device_id
-		WHERE dds.deployment_id = $1 AND dds.state = 'pending'
+		WHERE dds.deployment_id = $1 AND dds.state = 'queued'
 		ORDER BY
 			CASE d.status WHEN 'healthy' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END,
 			d.last_heartbeat DESC NULLS LAST

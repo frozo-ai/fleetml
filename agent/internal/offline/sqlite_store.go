@@ -138,6 +138,18 @@ func (s *SQLiteStore) ClearBuffer() error {
 	return nil
 }
 
+// ClearBufferBefore removes all buffered heartbeats with timestamp <= cutoff.
+func (s *SQLiteStore) ClearBufferBefore(cutoffTimestamp int64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_, err := s.db.Exec("DELETE FROM heartbeat_buffer WHERE timestamp <= ?", cutoffTimestamp)
+	if err != nil {
+		return fmt.Errorf("clear buffer before %d: %w", cutoffTimestamp, err)
+	}
+	return nil
+}
+
 // BufferCount returns the number of buffered heartbeats.
 func (s *SQLiteStore) BufferCount() (int, error) {
 	s.mu.Lock()

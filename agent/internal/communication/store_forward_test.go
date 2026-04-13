@@ -85,6 +85,25 @@ func (s *fakeStore) ClearBuffer() error {
 	return nil
 }
 
+func (s *fakeStore) BufferCount() (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.records), nil
+}
+
+func (s *fakeStore) ClearBufferBefore(cutoffTimestamp int64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var kept []*offline.HeartbeatRecord
+	for _, r := range s.records {
+		if r.Timestamp > cutoffTimestamp {
+			kept = append(kept, r)
+		}
+	}
+	s.records = kept
+	return nil
+}
+
 func (s *fakeStore) Close() error { return nil }
 
 func (s *fakeStore) count() int {

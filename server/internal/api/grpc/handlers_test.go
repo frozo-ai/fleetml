@@ -49,7 +49,7 @@ func TestExtractS3Key_EdgeCases(t *testing.T) {
 
 func TestNewHandler_NilDependencies(t *testing.T) {
 	// Handler should be constructible with nil dependencies (used in tests)
-	h := NewHandler(nil, nil, nil, nil, nil, nil)
+	h := NewHandler(nil, nil, nil, nil, nil, nil, nil)
 	if h == nil {
 		t.Fatal("expected non-nil Handler")
 	}
@@ -57,7 +57,7 @@ func TestNewHandler_NilDependencies(t *testing.T) {
 
 func TestHandler_GetModelArtifact_NoRegistryOrStore(t *testing.T) {
 	// Handler with nil registry/store should return error early
-	h := NewHandler(nil, nil, nil, nil, nil, nil)
+	h := NewHandler(nil, nil, nil, nil, nil, nil, nil)
 	if h.registry != nil {
 		t.Error("expected nil registry")
 	}
@@ -67,18 +67,18 @@ func TestHandler_GetModelArtifact_NoRegistryOrStore(t *testing.T) {
 }
 
 func TestNewHandler_AllNilFields(t *testing.T) {
-	h := NewHandler(nil, nil, nil, nil, nil, nil)
+	h := NewHandler(nil, nil, nil, nil, nil, nil, nil)
 	if h == nil {
 		t.Fatal("expected non-nil handler")
 	}
-	if h.fleet != nil || h.orchestrator != nil || h.registry != nil || h.store != nil || h.metrics != nil || h.logger != nil {
+	if h.fleet != nil || h.orchestrator != nil || h.registry != nil || h.store != nil || h.metrics != nil || h.db != nil || h.logger != nil {
 		t.Error("expected all fields nil")
 	}
 }
 
 func TestNewHandler_DistinctInstances(t *testing.T) {
-	h1 := NewHandler(nil, nil, nil, nil, nil, nil)
-	h2 := NewHandler(nil, nil, nil, nil, nil, nil)
+	h1 := NewHandler(nil, nil, nil, nil, nil, nil, nil)
+	h2 := NewHandler(nil, nil, nil, nil, nil, nil, nil)
 	if h1 == h2 {
 		t.Error("two NewHandler calls should return distinct pointers")
 	}

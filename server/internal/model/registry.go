@@ -36,6 +36,7 @@ type UploadRequest struct {
 	Metadata    map[string]interface{}
 	Tags        []string
 	CreatedBy   *string
+	OrgID       string
 }
 
 // Upload uploads a model file and creates a registry entry.
@@ -58,11 +59,11 @@ func (r *Registry) Upload(ctx context.Context, req UploadRequest) (*domain.Model
 
 	var m domain.Model
 	err := r.db.QueryRow(ctx, `
-		INSERT INTO models (name, version, format, artifact_url, artifact_size, checksum, description, metadata, tags, created_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		INSERT INTO models (name, version, format, artifact_url, artifact_size, checksum, description, metadata, tags, created_by, org_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		RETURNING id, name, version, format, artifact_url, artifact_size, checksum, description, created_at`,
 		req.Name, req.Version, req.Format, artifactURL, req.Size, checksum,
-		req.Description, metadataJSON, req.Tags, req.CreatedBy,
+		req.Description, metadataJSON, req.Tags, req.CreatedBy, req.OrgID,
 	).Scan(&m.ID, &m.Name, &m.Version, &m.Format, &m.ArtifactURL, &m.ArtifactSize,
 		&m.Checksum, &m.Description, &m.CreatedAt)
 	if err != nil {
@@ -74,15 +75,22 @@ func (r *Registry) Upload(ctx context.Context, req UploadRequest) (*domain.Model
 	return &m, nil
 }
 
-// GetModel returns a model by name and version.
-func (r *Registry) GetModel(ctx context.Context, name, version string) (*domain.Model, error) {
+// GetModel returns a model by name and version, scoped to an organization.
+// If orgID is empty, no org filter is applied (for gRPC/internal calls).
+func (r *Registry) GetModel(ctx context.Context, name, version string, orgID ...string) (*domain.Model, error) {
 	var m domain.Model
 	var metadataJSON, variantsJSON []byte
 
-	err := r.db.QueryRow(ctx, `
-		SELECT id, name, version, format, artifact_url, artifact_size, checksum,
+	query := `SELECT id, name, version, format, artifact_url, artifact_size, checksum,
 			   description, metadata, tags, compiled_variants, created_at, created_by
-		FROM models WHERE name = $1 AND version = $2`, name, version,
+		FROM models WHERE name = $1 AND version = $2`
+	args := []interface{}{name, version}
+	if len(orgID) > 0 && orgID[0] != "" {
+		query += ` AND org_id = $3`
+		args = append(args, orgID[0])
+	}
+
+	err := r.db.QueryRow(ctx, query, args...,
 	).Scan(
 		&m.ID, &m.Name, &m.Version, &m.Format, &m.ArtifactURL, &m.ArtifactSize,
 		&m.Checksum, &m.Description, &metadataJSON, &m.Tags, &variantsJSON,
@@ -105,15 +113,22 @@ func (r *Registry) GetModel(ctx context.Context, name, version string) (*domain.
 	return &m, nil
 }
 
-// GetModelByID returns a model by its UUID.
-func (r *Registry) GetModelByID(ctx context.Context, id string) (*domain.Model, error) {
+// GetModelByID returns a model by its UUID, optionally scoped to an organization.
+// If orgID is empty, no org filter is applied (for internal/gRPC calls).
+func (r *Registry) GetModelByID(ctx context.Context, id string, orgID ...string) (*domain.Model, error) {
 	var m domain.Model
 	var metadataJSON, variantsJSON []byte
 
-	err := r.db.QueryRow(ctx, `
-		SELECT id, name, version, format, artifact_url, artifact_size, checksum,
+	query := `SELECT id, name, version, format, artifact_url, artifact_size, checksum,
 			   description, metadata, tags, compiled_variants, created_at, created_by
-		FROM models WHERE id = $1`, id,
+		FROM models WHERE id = $1`
+	args := []interface{}{id}
+	if len(orgID) > 0 && orgID[0] != "" {
+		query += ` AND org_id = $2`
+		args = append(args, orgID[0])
+	}
+
+	err := r.db.QueryRow(ctx, query, args...,
 	).Scan(
 		&m.ID, &m.Name, &m.Version, &m.Format, &m.ArtifactURL, &m.ArtifactSize,
 		&m.Checksum, &m.Description, &metadataJSON, &m.Tags, &variantsJSON,
@@ -136,14 +151,14 @@ func (r *Registry) GetModelByID(ctx context.Context, id string) (*domain.Model, 
 	return &m, nil
 }
 
-// ListModels lists models with optional filters.
-func (r *Registry) ListModels(ctx context.Context, filter domain.ModelFilter) ([]*domain.Model, int, error) {
+// ListModels lists models with optional filters, scoped to an organization.
+func (r *Registry) ListModels(ctx context.Context, orgID string, filter domain.ModelFilter) ([]*domain.Model, int, error) {
 	query := `SELECT id, name, version, format, artifact_url, artifact_size, checksum,
 			         description, metadata, tags, created_at
-			  FROM models WHERE 1=1`
-	countQuery := `SELECT COUNT(*) FROM models WHERE 1=1`
-	args := []interface{}{}
-	argIdx := 1
+			  FROM models WHERE org_id = $1`
+	countQuery := `SELECT COUNT(*) FROM models WHERE org_id = $1`
+	args := []interface{}{orgID}
+	argIdx := 2
 
 	if filter.Name != "" {
 		query += fmt.Sprintf(" AND name = $%d", argIdx)
@@ -188,8 +203,8 @@ func (r *Registry) ListModels(ctx context.Context, filter domain.ModelFilter) ([
 	return models, total, nil
 }
 
-// DeleteModel soft-deletes a model (cannot delete if actively deployed).
-func (r *Registry) DeleteModel(ctx context.Context, id string) error {
+// DeleteModel soft-deletes a model (cannot delete if actively deployed), scoped to an organization.
+func (r *Registry) DeleteModel(ctx context.Context, orgID, id string) error {
 	// Check if model is actively deployed
 	var activeCount int
 	r.db.QueryRow(ctx, `
@@ -200,7 +215,7 @@ func (r *Registry) DeleteModel(ctx context.Context, id string) error {
 		return fmt.Errorf("cannot delete model: still deployed to %d devices", activeCount)
 	}
 
-	_, err := r.db.Exec(ctx, `DELETE FROM models WHERE id = $1`, id)
+	_, err := r.db.Exec(ctx, `DELETE FROM models WHERE id = $1 AND org_id = $2`, id, orgID)
 	if err != nil {
 		return fmt.Errorf("delete model: %w", err)
 	}

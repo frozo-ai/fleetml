@@ -35,6 +35,7 @@ func NewAuthHandler(jwt *auth.JWTService, db *pgxpool.Pool, logger *zap.SugaredL
 }
 
 var slugRegex = regexp.MustCompile(`[^a-z0-9]+`)
+var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 
 func toSlug(name string) string {
 	slug := strings.ToLower(strings.TrimSpace(name))
@@ -63,6 +64,11 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	if req.Email == "" || req.Password == "" {
 		http.Error(w, `{"error":"email and password are required"}`, http.StatusBadRequest)
+		return
+	}
+
+	if !emailRegex.MatchString(req.Email) {
+		http.Error(w, `{"error":"invalid email format"}`, http.StatusBadRequest)
 		return
 	}
 
@@ -114,8 +120,17 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	apiKey := generateAPIKey()
 
+	// Create organization, user, and subscription in a single transaction
+	tx, err := h.db.Begin(r.Context())
+	if err != nil {
+		h.logger.Errorw("failed to begin transaction", "error", err)
+		http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback(r.Context())
+
 	var orgID string
-	err = h.db.QueryRow(r.Context(), `
+	err = tx.QueryRow(r.Context(), `
 		INSERT INTO organizations (name, slug, plan, device_limit, fleet_limit, log_retention_days, features, api_key)
 		VALUES ($1, $2, 'free', $3, $4, $5, $6, $7)
 		RETURNING id`,
@@ -130,9 +145,8 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	// First user in org is admin
 	role := "admin"
 
-	// Create user in database
 	var userID string
-	err = h.db.QueryRow(r.Context(), `
+	err = tx.QueryRow(r.Context(), `
 		INSERT INTO users (email, password_hash, name, role, org_id)
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id`,
@@ -144,10 +158,21 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create free subscription record
-	h.db.Exec(r.Context(), `
+	// Create free subscription record (error handled, not silently ignored)
+	_, err = tx.Exec(r.Context(), `
 		INSERT INTO subscriptions (org_id, plan, status)
 		VALUES ($1, 'free', 'active')`, orgID)
+	if err != nil {
+		h.logger.Errorw("failed to create subscription", "error", err)
+		http.Error(w, `{"error":"failed to create subscription"}`, http.StatusInternalServerError)
+		return
+	}
+
+	if err := tx.Commit(r.Context()); err != nil {
+		h.logger.Errorw("failed to commit registration", "error", err)
+		http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
+		return
+	}
 
 	h.logger.Infow("user registered", "email", req.Email, "role", role, "org_id", orgID)
 

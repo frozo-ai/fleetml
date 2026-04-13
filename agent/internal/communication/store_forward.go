@@ -119,11 +119,11 @@ func (sf *StoreForwardManager) IsConnected() bool {
 
 // BufferedCount returns the number of buffered heartbeats.
 func (sf *StoreForwardManager) BufferedCount() int {
-	records, err := sf.store.GetBufferedHeartbeats()
+	count, err := sf.store.BufferCount()
 	if err != nil {
 		return -1
 	}
-	return len(records)
+	return count
 }
 
 // bulkSync sends all buffered heartbeats to the server in batches.
@@ -136,6 +136,14 @@ func (sf *StoreForwardManager) bulkSync(ctx context.Context, deviceID string) {
 
 	if len(records) == 0 {
 		return
+	}
+
+	// Record the latest timestamp we're syncing — only clear up to this point
+	var maxTimestamp int64
+	for _, r := range records {
+		if r.Timestamp > maxTimestamp {
+			maxTimestamp = r.Timestamp
+		}
 	}
 
 	sf.logger.Infow("starting bulk sync",
@@ -165,8 +173,8 @@ func (sf *StoreForwardManager) bulkSync(ctx context.Context, deviceID string) {
 		}
 	}
 
-	// Clear buffer after successful sync
-	if err := sf.store.ClearBuffer(); err != nil {
+	// Only clear records up to the timestamp we synced — new ones are preserved
+	if err := sf.store.ClearBufferBefore(maxTimestamp); err != nil {
 		sf.logger.Errorw("failed to clear buffer after sync", "error", err)
 		return
 	}

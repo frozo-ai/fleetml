@@ -23,6 +23,12 @@ type MetricsStore interface {
 	// ClearBuffer removes all buffered heartbeats.
 	ClearBuffer() error
 
+	// BufferCount returns the count of buffered heartbeats without loading them.
+	BufferCount() (int, error)
+
+	// ClearBufferBefore removes all buffered heartbeats with timestamp <= cutoff.
+	ClearBufferBefore(cutoffTimestamp int64) error
+
 	// Close closes the store.
 	Close() error
 }

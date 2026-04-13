@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/fleetml/fleetml/server/internal/auth"
 	"github.com/fleetml/fleetml/server/internal/domain"
 	"github.com/fleetml/fleetml/server/internal/fleet"
 	"github.com/go-chi/chi/v5"
@@ -23,6 +24,12 @@ func NewDeviceHandler(fleetMgr *fleet.Manager, logger *zap.SugaredLogger) *Devic
 
 // List lists devices with optional filters.
 func (h *DeviceHandler) List(w http.ResponseWriter, r *http.Request) {
+	claims := auth.GetClaims(r.Context())
+	if claims == nil || claims.OrgID == "" {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
 	filter := domain.DeviceFilter{
 		Status:  r.URL.Query().Get("status"),
 		FleetID: r.URL.Query().Get("fleet_id"),
@@ -36,7 +43,7 @@ func (h *DeviceHandler) List(w http.ResponseWriter, r *http.Request) {
 		filter.Offset, _ = strconv.Atoi(o)
 	}
 
-	devices, total, err := h.fleet.ListDevices(r.Context(), filter)
+	devices, total, err := h.fleet.ListDevices(r.Context(), claims.OrgID, filter)
 	if err != nil {
 		http.Error(w, `{"error":"failed to list devices"}`, http.StatusInternalServerError)
 		return
@@ -55,9 +62,15 @@ func (h *DeviceHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // Get returns a single device.
 func (h *DeviceHandler) Get(w http.ResponseWriter, r *http.Request) {
+	claims := auth.GetClaims(r.Context())
+	if claims == nil || claims.OrgID == "" {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
 	deviceID := chi.URLParam(r, "device_id")
 
-	device, err := h.fleet.GetDevice(r.Context(), deviceID)
+	device, err := h.fleet.GetDevice(r.Context(), claims.OrgID, deviceID)
 	if err != nil {
 		http.Error(w, `{"error":"device not found"}`, http.StatusNotFound)
 		return
@@ -69,6 +82,12 @@ func (h *DeviceHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 // Update updates device properties.
 func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
+	claims := auth.GetClaims(r.Context())
+	if claims == nil || claims.OrgID == "" {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
 	deviceID := chi.URLParam(r, "device_id")
 
 	var req struct {
@@ -83,13 +102,13 @@ func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.FleetID != "" {
-		if err := h.fleet.AssignDeviceToFleet(r.Context(), deviceID, req.FleetID); err != nil {
+		if err := h.fleet.AssignDeviceToFleet(r.Context(), claims.OrgID, deviceID, req.FleetID); err != nil {
 			http.Error(w, `{"error":"failed to assign fleet"}`, http.StatusInternalServerError)
 			return
 		}
 	}
 
-	device, err := h.fleet.GetDevice(r.Context(), deviceID)
+	device, err := h.fleet.GetDevice(r.Context(), claims.OrgID, deviceID)
 	if err != nil {
 		http.Error(w, `{"error":"device not found"}`, http.StatusNotFound)
 		return
@@ -101,7 +120,19 @@ func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 // Delete decommissions a device.
 func (h *DeviceHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	claims := auth.GetClaims(r.Context())
+	if claims == nil || claims.OrgID == "" {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
 	deviceID := chi.URLParam(r, "device_id")
+
+	// Verify device belongs to org before decommissioning
+	if _, err := h.fleet.GetDevice(r.Context(), claims.OrgID, deviceID); err != nil {
+		http.Error(w, `{"error":"device not found"}`, http.StatusNotFound)
+		return
+	}
 
 	// Set status to decommissioned
 	h.fleet.UpdateDeviceStatus(r.Context(), deviceID, "decommissioned", nil, nil, nil, nil, nil, nil)

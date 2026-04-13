@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/fleetml/fleetml/server/internal/auth"
 	"github.com/fleetml/fleetml/server/internal/domain"
 	"github.com/fleetml/fleetml/server/internal/model"
 	"github.com/go-chi/chi/v5"
@@ -23,6 +24,12 @@ func NewModelHandler(registry *model.Registry, logger *zap.SugaredLogger) *Model
 
 // Upload handles multipart model upload.
 func (h *ModelHandler) Upload(w http.ResponseWriter, r *http.Request) {
+	claims := auth.GetClaims(r.Context())
+	if claims == nil || claims.OrgID == "" {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
 	// Parse multipart form (max 500MB)
 	if err := r.ParseMultipartForm(500 << 20); err != nil {
 		http.Error(w, `{"error":"failed to parse multipart form"}`, http.StatusBadRequest)
@@ -69,6 +76,7 @@ func (h *ModelHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		Description: r.FormValue("description"),
 		Metadata:    metadata,
 		Tags:        tags,
+		OrgID:       claims.OrgID,
 	})
 	if err != nil {
 		h.logger.Errorw("failed to upload model", "error", err)
@@ -83,6 +91,12 @@ func (h *ModelHandler) Upload(w http.ResponseWriter, r *http.Request) {
 
 // List lists models with optional filters.
 func (h *ModelHandler) List(w http.ResponseWriter, r *http.Request) {
+	claims := auth.GetClaims(r.Context())
+	if claims == nil || claims.OrgID == "" {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
 	filter := domain.ModelFilter{
 		Name: r.URL.Query().Get("name"),
 	}
@@ -94,7 +108,7 @@ func (h *ModelHandler) List(w http.ResponseWriter, r *http.Request) {
 		filter.Offset, _ = strconv.Atoi(o)
 	}
 
-	models, total, err := h.registry.ListModels(r.Context(), filter)
+	models, total, err := h.registry.ListModels(r.Context(), claims.OrgID, filter)
 	if err != nil {
 		http.Error(w, `{"error":"failed to list models"}`, http.StatusInternalServerError)
 		return
@@ -113,9 +127,15 @@ func (h *ModelHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // Get returns a single model by ID.
 func (h *ModelHandler) Get(w http.ResponseWriter, r *http.Request) {
+	claims := auth.GetClaims(r.Context())
+	if claims == nil || claims.OrgID == "" {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
 	id := chi.URLParam(r, "id")
 
-	m, err := h.registry.GetModelByID(r.Context(), id)
+	m, err := h.registry.GetModelByID(r.Context(), id, claims.OrgID)
 	if err != nil {
 		http.Error(w, `{"error":"model not found"}`, http.StatusNotFound)
 		return
@@ -127,10 +147,18 @@ func (h *ModelHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 // Delete deletes a model.
 func (h *ModelHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	claims := auth.GetClaims(r.Context())
+	if claims == nil || claims.OrgID == "" {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
 	id := chi.URLParam(r, "id")
 
-	if err := h.registry.DeleteModel(r.Context(), id); err != nil {
-		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusConflict)
+	if err := h.registry.DeleteModel(r.Context(), claims.OrgID, id); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 		return
 	}
 

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/fleetml/fleetml/server/internal/deploy"
 	"github.com/fleetml/fleetml/server/internal/domain"
@@ -61,6 +62,33 @@ func (h *Handler) resolveOrgFromAPIKey(ctx context.Context) (string, error) {
 	}
 
 	return orgID, nil
+}
+
+// APIKeyUnaryInterceptor creates a gRPC unary interceptor that validates API keys.
+// Register is exempt since it does its own API key validation.
+func (h *Handler) APIKeyUnaryInterceptor() grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+		// Allow Register — it does its own API key check inside the handler
+		if strings.HasSuffix(info.FullMethod, "/Register") {
+			return handler(ctx, req)
+		}
+		_, err := h.resolveOrgFromAPIKey(ctx)
+		if err != nil {
+			return nil, status.Error(codes.Unauthenticated, "invalid or missing API key")
+		}
+		return handler(ctx, req)
+	}
+}
+
+// APIKeyStreamInterceptor creates a gRPC stream interceptor that validates API keys.
+func (h *Handler) APIKeyStreamInterceptor() grpc.StreamServerInterceptor {
+	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		_, err := h.resolveOrgFromAPIKey(ss.Context())
+		if err != nil {
+			return status.Error(codes.Unauthenticated, "invalid or missing API key")
+		}
+		return handler(srv, ss)
+	}
 }
 
 // RegisterService registers the handler with the gRPC server.

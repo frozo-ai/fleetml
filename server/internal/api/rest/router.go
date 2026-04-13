@@ -46,7 +46,6 @@ func NewRouter(
 	r.Use(middleware.Compress(5))
 	r.Use(tracing.HTTPMiddleware)
 	r.Use(mw.SecurityHeaders)
-	r.Use(mw.RequestSizeLimit())
 
 	// Rate limiting — default for all routes
 	apiLimiter := mw.DefaultRateLimiter(logger)
@@ -83,42 +82,45 @@ func NewRouter(
 	r.Route("/api/v1", func(r chi.Router) {
 		// Public routes
 		r.Get("/health", healthHandler.Health)
-		r.With(authLimiter.Middleware).Post("/auth/register", authHandler.Register)
-		r.With(authLimiter.Middleware).Post("/auth/login", authHandler.Login)
+		r.With(authLimiter.Middleware, mw.RequestSizeLimit()).Post("/auth/register", authHandler.Register)
+		r.With(authLimiter.Middleware, mw.RequestSizeLimit()).Post("/auth/login", authHandler.Login)
 
 		// Dodo Payments webhook (public, verified by webhook signature)
-		r.Post("/webhooks/dodo", billingHandler.Webhook)
+		r.With(mw.RequestSizeLimit()).Post("/webhooks/dodo", billingHandler.Webhook)
 
 		// Authenticated routes
 		r.Group(func(r chi.Router) {
 			r.Use(jwtService.AuthMiddleware)
 
 			// Auth
-			r.Get("/auth/me", authHandler.Me)
+			r.With(mw.RequestSizeLimit()).Get("/auth/me", authHandler.Me)
 
 			// Billing
 			r.Route("/billing", func(r chi.Router) {
+				r.Use(mw.RequestSizeLimit())
 				r.Get("/subscription", billingHandler.GetSubscription)
 				r.Post("/checkout", billingHandler.CreateCheckout)
 			})
 
 			// API Keys
 			r.Route("/api-keys", func(r chi.Router) {
+				r.Use(mw.RequestSizeLimit())
 				r.Get("/", apiKeyHandler.Get)
 				r.Post("/regenerate", apiKeyHandler.Regenerate)
 			})
 
-			// Models
+			// Models — upload POST uses a 500MB limit; all other routes use 1MB.
 			r.Route("/models", func(r chi.Router) {
-				r.With(auth.RequirePermission("models:read")).Get("/", modelHandler.List)
-				r.With(auth.RequirePermission("models:write")).Post("/", modelHandler.Upload)
-				r.With(auth.RequirePermission("models:read")).Get("/{id}", modelHandler.Get)
-				r.With(auth.RequirePermission("models:delete")).Delete("/{id}", modelHandler.Delete)
-				r.With(auth.RequirePermission("models:write")).Post("/{id}/compile", compileHandler.Compile)
+				r.With(auth.RequirePermission("models:read"), mw.RequestSizeLimit()).Get("/", modelHandler.List)
+				r.With(auth.RequirePermission("models:write"), mw.ModelUploadSizeLimit()).Post("/", modelHandler.Upload)
+				r.With(auth.RequirePermission("models:read"), mw.RequestSizeLimit()).Get("/{id}", modelHandler.Get)
+				r.With(auth.RequirePermission("models:delete"), mw.RequestSizeLimit()).Delete("/{id}", modelHandler.Delete)
+				r.With(auth.RequirePermission("models:write"), mw.RequestSizeLimit()).Post("/{id}/compile", compileHandler.Compile)
 			})
 
 			// Devices
 			r.Route("/devices", func(r chi.Router) {
+				r.Use(mw.RequestSizeLimit())
 				r.With(auth.RequirePermission("devices:read")).Get("/", deviceHandler.List)
 				r.With(auth.RequirePermission("devices:read")).Get("/{device_id}", deviceHandler.Get)
 				r.With(auth.RequirePermission("devices:read")).Get("/{device_id}/logs", logsHandler.GetLogs)
@@ -129,6 +131,7 @@ func NewRouter(
 
 			// Fleets
 			r.Route("/fleets", func(r chi.Router) {
+				r.Use(mw.RequestSizeLimit())
 				r.With(auth.RequirePermission("fleets:read")).Get("/", fleetHandler.List)
 				r.With(auth.RequirePermission("fleets:write")).Post("/", fleetHandler.Create)
 				r.With(auth.RequirePermission("fleets:read")).Get("/{id}", fleetHandler.Get)
@@ -141,6 +144,7 @@ func NewRouter(
 
 			// A/B Tests
 			r.Route("/ab-tests", func(r chi.Router) {
+				r.Use(mw.RequestSizeLimit())
 				r.With(auth.RequirePermission("deployments:read")).Get("/", abtestHandler.List)
 				r.With(auth.RequirePermission("deployments:write")).Post("/", abtestHandler.Create)
 				r.With(auth.RequirePermission("deployments:read")).Get("/{id}", abtestHandler.Get)
@@ -149,6 +153,7 @@ func NewRouter(
 
 			// Drift Detection
 			r.Route("/drift", func(r chi.Router) {
+				r.Use(mw.RequestSizeLimit())
 				r.With(auth.RequirePermission("models:write")).Post("/baselines", driftHandler.SetBaseline)
 				r.With(auth.RequirePermission("models:write")).Post("/analyze", driftHandler.Analyze)
 				r.With(auth.RequirePermission("models:read")).Get("/reports", driftHandler.ListReports)
@@ -156,6 +161,7 @@ func NewRouter(
 
 			// Policies
 			r.Route("/policies", func(r chi.Router) {
+				r.Use(mw.RequestSizeLimit())
 				r.With(auth.RequirePermission("policies:read")).Get("/", policyHandler.List)
 				r.With(auth.RequirePermission("policies:write")).Post("/", policyHandler.Create)
 				r.With(auth.RequirePermission("policies:read")).Get("/{id}", policyHandler.Get)
@@ -165,12 +171,14 @@ func NewRouter(
 
 			// Integrations (MLflow, HuggingFace)
 			r.Route("/integrations", func(r chi.Router) {
+				r.Use(mw.RequestSizeLimit())
 				r.With(auth.RequirePermission("models:write")).Post("/mlflow/import", integrationHandler.ImportMLflow)
 				r.With(auth.RequirePermission("models:write")).Post("/huggingface/import", integrationHandler.ImportHuggingFace)
 			})
 
 			// Deployments
 			r.Route("/deployments", func(r chi.Router) {
+				r.Use(mw.RequestSizeLimit())
 				r.With(auth.RequirePermission("deployments:read")).Get("/", deployHandler.List)
 				r.With(auth.RequirePermission("deployments:write")).Post("/", deployHandler.Create)
 				r.With(auth.RequirePermission("deployments:read")).Get("/{id}", deployHandler.Get)
@@ -180,7 +188,7 @@ func NewRouter(
 		})
 
 		// Heartbeat (API key auth, not JWT)
-		r.Post("/heartbeat", healthHandler.Heartbeat)
+		r.With(mw.RequestSizeLimit()).Post("/heartbeat", healthHandler.Heartbeat)
 	})
 
 	return r

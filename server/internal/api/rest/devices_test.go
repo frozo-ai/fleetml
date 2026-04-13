@@ -1,19 +1,33 @@
 package rest
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/fleetml/fleetml/server/internal/auth"
 	"go.uber.org/zap"
 )
+
+// withTestClaims adds test JWT claims to a request context for handler tests.
+func withTestClaims(r *http.Request) *http.Request {
+	claims := &auth.Claims{
+		UserID: "test-user-id",
+		Email:  "test@example.com",
+		Role:   "admin",
+		OrgID:  "test-org-id",
+	}
+	ctx := context.WithValue(r.Context(), auth.UserContextKey, claims)
+	return r.WithContext(ctx)
+}
 
 func TestDeviceHandler_Update_InvalidJSON(t *testing.T) {
 	logger := zap.NewNop().Sugar()
 	handler := NewDeviceHandler(nil, logger)
 
-	req := httptest.NewRequest(http.MethodPatch, "/api/v1/devices/device-123", strings.NewReader("{invalid json"))
+	req := withTestClaims(httptest.NewRequest(http.MethodPatch, "/api/v1/devices/device-123", strings.NewReader("{invalid json")))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -29,7 +43,7 @@ func TestDeviceHandler_Update_EmptyBody(t *testing.T) {
 	handler := NewDeviceHandler(nil, logger)
 
 	// Empty body (no JSON at all) should fail to decode
-	req := httptest.NewRequest(http.MethodPatch, "/api/v1/devices/device-123", strings.NewReader(""))
+	req := withTestClaims(httptest.NewRequest(http.MethodPatch, "/api/v1/devices/device-123", strings.NewReader("")))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -46,8 +60,8 @@ func TestDeviceHandler_Update_WrongJSONTypes(t *testing.T) {
 	handler := NewDeviceHandler(nil, logger)
 
 	// labels should be map[string]string, not an array
-	req := httptest.NewRequest(http.MethodPatch, "/api/v1/devices/device-123",
-		strings.NewReader(`{"labels": "not-a-map"}`))
+	req := withTestClaims(httptest.NewRequest(http.MethodPatch, "/api/v1/devices/device-123",
+		strings.NewReader(`{"labels": "not-a-map"}`)))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -63,8 +77,8 @@ func TestDeviceHandler_Update_MalformedJSONTrailing(t *testing.T) {
 	handler := NewDeviceHandler(nil, logger)
 
 	// Malformed JSON with trailing garbage characters
-	req := httptest.NewRequest(http.MethodPatch, "/api/v1/devices/device-123",
-		strings.NewReader(`not-even-close`))
+	req := withTestClaims(httptest.NewRequest(http.MethodPatch, "/api/v1/devices/device-123",
+		strings.NewReader(`not-even-close`)))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -80,7 +94,7 @@ func TestDeviceHandler_Get_EmptyID(t *testing.T) {
 	handler := NewDeviceHandler(nil, logger)
 
 	// Without chi context, URLParam returns "" — device_id will be empty
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/devices/", nil)
+	req := withTestClaims(httptest.NewRequest(http.MethodGet, "/api/v1/devices/", nil))
 	w := httptest.NewRecorder()
 
 	func() {
@@ -98,13 +112,13 @@ func TestDeviceHandler_Delete_EmptyID(t *testing.T) {
 	logger := zap.NewNop().Sugar()
 	handler := NewDeviceHandler(nil, logger)
 
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/devices/", nil)
+	req := withTestClaims(httptest.NewRequest(http.MethodDelete, "/api/v1/devices/", nil))
 	w := httptest.NewRecorder()
 
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
-				// Expected: handler tried to call fleet.UpdateDeviceStatus with empty ID
+				// Expected: handler tried to call fleet.GetDevice with empty ID
 			}
 		}()
 		handler.Delete(w, req)
@@ -116,7 +130,7 @@ func TestDeviceHandler_List_WithQueryParams(t *testing.T) {
 	handler := NewDeviceHandler(nil, logger)
 
 	// Handler doesn't validate status values — any status string is passed through
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/devices?status=invalid_status&limit=abc", nil)
+	req := withTestClaims(httptest.NewRequest(http.MethodGet, "/api/v1/devices?status=invalid_status&limit=abc", nil))
 	w := httptest.NewRecorder()
 
 	func() {
@@ -134,8 +148,8 @@ func TestDeviceHandler_Update_ValidJSONNoFleetID(t *testing.T) {
 	handler := NewDeviceHandler(nil, logger)
 
 	// Valid JSON with no fleet_id — should still reach GetDevice (panics on nil fleet)
-	req := httptest.NewRequest(http.MethodPatch, "/api/v1/devices/device-123",
-		strings.NewReader(`{"name":"new-name"}`))
+	req := withTestClaims(httptest.NewRequest(http.MethodPatch, "/api/v1/devices/device-123",
+		strings.NewReader(`{"name":"new-name"}`)))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -147,6 +161,20 @@ func TestDeviceHandler_Update_ValidJSONNoFleetID(t *testing.T) {
 		}()
 		handler.Update(w, req)
 	}()
+}
+
+func TestDeviceHandler_List_NoAuth(t *testing.T) {
+	logger := zap.NewNop().Sugar()
+	handler := NewDeviceHandler(nil, logger)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/devices", nil)
+	w := httptest.NewRecorder()
+
+	handler.List(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for missing auth, got %d", w.Code)
+	}
 }
 
 func TestNewDeviceHandler(t *testing.T) {

@@ -42,18 +42,19 @@ type CreateRequest struct {
 	TargetLabels map[string]string `json:"target_labels"` // Label selector
 	Policy       string            `json:"policy"`        // immediate, canary
 	CanaryConfig *domain.CanaryConfig `json:"canary_config,omitempty"`
+	OrgID        string            `json:"-"` // Set from JWT claims, not request body
 }
 
 // CreateDeployment creates and starts a deployment.
 func (o *Orchestrator) CreateDeployment(ctx context.Context, req CreateRequest) (*domain.Deployment, error) {
 	// 1. Resolve model
-	m, err := o.registry.GetModel(ctx, req.ModelName, req.ModelVersion)
+	m, err := o.registry.GetModel(ctx, req.ModelName, req.ModelVersion, req.OrgID)
 	if err != nil {
 		return nil, fmt.Errorf("model not found: %w", err)
 	}
 
 	// 2. Resolve target devices
-	devices, err := o.fleet.SelectDevices(ctx, req.TargetType, req.TargetID, req.TargetLabels)
+	devices, err := o.fleet.SelectDevices(ctx, req.OrgID, req.TargetType, req.TargetID, req.TargetLabels)
 	if err != nil {
 		return nil, fmt.Errorf("select devices: %w", err)
 	}
@@ -93,8 +94,8 @@ func (o *Orchestrator) CreateDeployment(ctx context.Context, req CreateRequest) 
 	err = o.db.QueryRow(ctx, `
 		INSERT INTO deployments (model_id, target_type, target_fleet_id, target_labels,
 			state, total_devices, queued_devices, deployment_policy, canary_config,
-			started_at, created_at)
-		VALUES ($1, $2, $3, $4, 'rolling_out', $5, $6, $7, $8, $9, $9)
+			started_at, created_at, org_id)
+		VALUES ($1, $2, $3, $4, 'rolling_out', $5, $6, $7, $8, $9, $9, $10)
 		RETURNING id, state, total_devices, completed_devices, failed_devices, queued_devices,
 			deployment_policy, started_at, created_at`,
 		m.ID,
@@ -106,6 +107,7 @@ func (o *Orchestrator) CreateDeployment(ctx context.Context, req CreateRequest) 
 		policy,
 		canaryJSON,
 		now,
+		req.OrgID,
 	).Scan(
 		&d.ID, &d.State, &d.TotalDevices, &d.CompletedDevices,
 		&d.FailedDevices, &d.QueuedDevices, &d.DeploymentPolicy,
@@ -170,18 +172,25 @@ func (o *Orchestrator) CreateDeployment(ctx context.Context, req CreateRequest) 
 	return &d, nil
 }
 
-// GetDeployment returns deployment status with per-device details.
-func (o *Orchestrator) GetDeployment(ctx context.Context, id string) (*domain.Deployment, error) {
+// GetDeployment returns deployment status with per-device details, optionally scoped to an organization.
+// If orgID is empty, no org filter is applied (for internal calls like rollback).
+func (o *Orchestrator) GetDeployment(ctx context.Context, id string, orgID ...string) (*domain.Deployment, error) {
 	var d domain.Deployment
 	var canaryJSON []byte
 
-	err := o.db.QueryRow(ctx, `
-		SELECT id, model_id, target_type, state, total_devices, completed_devices,
+	query := `SELECT id, model_id, target_type, target_fleet_id, state, total_devices, completed_devices,
 			   failed_devices, queued_devices, deployment_policy, canary_config,
 			   COALESCE(error, ''), started_at, completed_at, created_at
-		FROM deployments WHERE id = $1`, id,
+		FROM deployments WHERE id = $1`
+	args := []interface{}{id}
+	if len(orgID) > 0 && orgID[0] != "" {
+		query += ` AND org_id = $2`
+		args = append(args, orgID[0])
+	}
+
+	err := o.db.QueryRow(ctx, query, args...,
 	).Scan(
-		&d.ID, &d.ModelID, &d.TargetType, &d.State, &d.TotalDevices,
+		&d.ID, &d.ModelID, &d.TargetType, &d.TargetFleetID, &d.State, &d.TotalDevices,
 		&d.CompletedDevices, &d.FailedDevices, &d.QueuedDevices,
 		&d.DeploymentPolicy, &canaryJSON, &d.Error, &d.StartedAt,
 		&d.CompletedAt, &d.CreatedAt,
@@ -200,23 +209,22 @@ func (o *Orchestrator) GetDeployment(ctx context.Context, id string) (*domain.De
 	return &d, nil
 }
 
-// ListDeployments lists deployments with optional filters.
-func (o *Orchestrator) ListDeployments(ctx context.Context, state, modelName string) ([]*domain.Deployment, int, error) {
+// ListDeployments lists deployments with optional filters, scoped to an organization.
+func (o *Orchestrator) ListDeployments(ctx context.Context, orgID, state, modelName string) ([]*domain.Deployment, int, error) {
 	query := `SELECT d.id, d.model_id, d.target_type, d.state, d.total_devices,
 			         d.completed_devices, d.failed_devices, d.queued_devices,
 			         d.deployment_policy, d.started_at, d.completed_at, d.created_at
-			  FROM deployments d`
-	args := []interface{}{}
-	where := ""
-	argIdx := 1
+			  FROM deployments d WHERE d.org_id = $1`
+	args := []interface{}{orgID}
+	argIdx := 2
 
 	if state != "" {
-		where += fmt.Sprintf(" WHERE d.state = $%d", argIdx)
+		query += fmt.Sprintf(" AND d.state = $%d", argIdx)
 		args = append(args, state)
 		argIdx++
 	}
 
-	query += where + " ORDER BY d.created_at DESC LIMIT 50"
+	query += " ORDER BY d.created_at DESC LIMIT 50"
 
 	rows, err := o.db.Query(ctx, query, args...)
 	if err != nil {
@@ -241,11 +249,11 @@ func (o *Orchestrator) ListDeployments(ctx context.Context, state, modelName str
 	return deployments, len(deployments), nil
 }
 
-// CancelDeployment cancels a running deployment.
-func (o *Orchestrator) CancelDeployment(ctx context.Context, id string) error {
+// CancelDeployment cancels a running deployment, scoped to an organization.
+func (o *Orchestrator) CancelDeployment(ctx context.Context, orgID, id string) error {
 	_, err := o.db.Exec(ctx, `
 		UPDATE deployments SET state = 'cancelled', completed_at = NOW()
-		WHERE id = $1 AND state IN ('pending', 'rolling_out')`, id)
+		WHERE id = $1 AND state IN ('pending', 'rolling_out') AND org_id = $2`, id, orgID)
 	if err != nil {
 		return fmt.Errorf("cancel deployment: %w", err)
 	}
@@ -301,22 +309,26 @@ func (o *Orchestrator) HandleDeploymentReport(ctx context.Context, deviceID, dep
 	return nil
 }
 
-// RollbackDeployment creates a rollback deployment for the given deployment ID.
-func (o *Orchestrator) RollbackDeployment(ctx context.Context, deploymentID string) (*domain.Deployment, error) {
+// RollbackDeployment creates a rollback deployment for the given deployment ID, scoped to an organization.
+func (o *Orchestrator) RollbackDeployment(ctx context.Context, orgID, deploymentID string) (*domain.Deployment, error) {
 	// Get original deployment
-	orig, err := o.GetDeployment(ctx, deploymentID)
+	orig, err := o.GetDeployment(ctx, deploymentID, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("get original deployment: %w", err)
 	}
 
-	// Find the previous model that was active before this deployment
+	// Find the previous model that was active before this deployment,
+	// scoped to the same target fleet, target type, and organization.
 	var prevModelID *string
 	err = o.db.QueryRow(ctx, `
 		SELECT model_id FROM deployments
 		WHERE id != $1 AND state = 'completed'
 		AND model_id != $2
+		AND COALESCE(target_fleet_id::text, '') = COALESCE($3::text, '')
+		AND target_type = $4
+		AND org_id = $5
 		ORDER BY completed_at DESC LIMIT 1`,
-		deploymentID, orig.ModelID,
+		deploymentID, orig.ModelID, orig.TargetFleetID, orig.TargetType, orgID,
 	).Scan(&prevModelID)
 	if err != nil || prevModelID == nil {
 		return nil, fmt.Errorf("no previous deployment found to rollback to")
@@ -359,11 +371,11 @@ func (o *Orchestrator) RollbackDeployment(ctx context.Context, deploymentID stri
 	var d domain.Deployment
 	err = o.db.QueryRow(ctx, `
 		INSERT INTO deployments (model_id, target_type, state, total_devices,
-			deployment_policy, rollback_model_id, started_at, created_at)
-		VALUES ($1, 'rollback', 'rolling_out', $2, 'immediate', $3, $4, $4)
+			deployment_policy, rollback_model_id, started_at, created_at, org_id)
+		VALUES ($1, 'rollback', 'rolling_out', $2, 'immediate', $3, $4, $4, $5)
 		RETURNING id, state, total_devices, completed_devices, failed_devices, queued_devices,
 			deployment_policy, started_at, created_at`,
-		m.ID, len(deviceIDs), orig.ModelID, now,
+		m.ID, len(deviceIDs), orig.ModelID, now, orgID,
 	).Scan(
 		&d.ID, &d.State, &d.TotalDevices, &d.CompletedDevices,
 		&d.FailedDevices, &d.QueuedDevices, &d.DeploymentPolicy,

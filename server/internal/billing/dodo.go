@@ -3,6 +3,9 @@ package billing
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -29,6 +32,23 @@ func NewClient(cfg config.BillingConfig, db *pgxpool.Pool, logger *zap.SugaredLo
 		http:   &http.Client{},
 		logger: logger,
 	}
+}
+
+// VerifyWebhookSignature validates the Dodo webhook HMAC-SHA256 signature.
+func (c *Client) VerifyWebhookSignature(body []byte, signature string) error {
+	if c.cfg.DodoWebhookKey == "" {
+		c.logger.Warn("webhook key not configured, skipping signature verification")
+		return nil
+	}
+
+	mac := hmac.New(sha256.New, []byte(c.cfg.DodoWebhookKey))
+	mac.Write(body)
+	expectedSig := hex.EncodeToString(mac.Sum(nil))
+
+	if !hmac.Equal([]byte(signature), []byte(expectedSig)) {
+		return fmt.Errorf("invalid webhook signature")
+	}
+	return nil
 }
 
 func (c *Client) baseURL() string {

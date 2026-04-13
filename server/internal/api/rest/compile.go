@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/fleetml/fleetml/server/internal/auth"
 	"github.com/fleetml/fleetml/server/internal/compiler"
 	"github.com/fleetml/fleetml/server/internal/domain"
 	mw "github.com/fleetml/fleetml/server/internal/middleware"
@@ -35,6 +36,12 @@ type compileRequest struct {
 
 // Compile handles POST /api/v1/models/{id}/compile.
 func (h *CompileHandler) Compile(w http.ResponseWriter, r *http.Request) {
+	claims := auth.GetClaims(r.Context())
+	if claims == nil || claims.OrgID == "" {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
 	modelID := chi.URLParam(r, "id")
 
 	// 1. Parse request body
@@ -50,7 +57,7 @@ func (h *CompileHandler) Compile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. Get model from registry (verify it exists and is ONNX)
-	m, err := h.registry.GetModelByID(r.Context(), modelID)
+	m, err := h.registry.GetModelByID(r.Context(), modelID, claims.OrgID)
 	if err != nil {
 		mw.WriteNotFound(w, "model not found")
 		return
