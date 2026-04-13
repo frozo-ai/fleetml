@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
-# FleetML CLI Installer
-# Usage: curl -sSL https://raw.githubusercontent.com/frozo-ai/fleetml/main/scripts/install.sh | bash
+# FleetML Agent Installer
+# Usage: curl -sSL https://raw.githubusercontent.com/frozo-ai/fleetml/main/scripts/install-agent.sh | sh
 #
-# Installs the latest FleetML CLI binary to /usr/local/bin/fleetml
+# Installs the FleetML agent binary to /usr/local/bin/fleetml-agent
+# Supports: Linux (amd64, arm64), macOS (amd64, arm64)
 
 set -euo pipefail
 
 REPO="frozo-ai/fleetml"
 INSTALL_DIR="/usr/local/bin"
-BINARY_NAME="fleetml"
+BINARY_NAME="fleetml-agent"
 
 # Colors
 RED='\033[0;31m'
@@ -22,7 +23,7 @@ info() { echo -e "${CYAN}[>]${NC} $1"; }
 err()  { echo -e "${RED}[!]${NC} $1"; exit 1; }
 
 echo ""
-echo -e "${BOLD}FleetML CLI Installer${NC}"
+echo -e "${BOLD}FleetML Agent Installer${NC}"
 echo ""
 
 # Detect OS and architecture
@@ -33,13 +34,14 @@ case "$ARCH" in
     x86_64)  ARCH="amd64" ;;
     aarch64) ARCH="arm64" ;;
     arm64)   ARCH="arm64" ;;
+    armv7l)  ARCH="arm64" ;;
     *)       err "Unsupported architecture: $ARCH" ;;
 esac
 
 case "$OS" in
     linux)  ;;
     darwin) ;;
-    *)      err "Unsupported OS: $OS" ;;
+    *)      err "Unsupported OS: $OS. The agent requires Linux or macOS." ;;
 esac
 
 info "Detected: ${OS}/${ARCH}"
@@ -62,41 +64,42 @@ if [ -z "$LATEST" ]; then
     info "Cloning repository..."
     git clone --depth 1 "https://github.com/${REPO}.git" "$TMPDIR/fleetml" 2>/dev/null
 
-    info "Building CLI..."
-    cd "$TMPDIR/fleetml/cli"
-    CGO_ENABLED=0 go build -ldflags="-s -w" -o "$TMPDIR/fleetml-bin" ./cmd/fleetml
+    info "Building agent..."
+    cd "$TMPDIR/fleetml/agent"
+    CGO_ENABLED=0 go build -ldflags="-s -w" -o "$TMPDIR/fleetml-agent-bin" ./cmd/agent
 
     info "Installing to ${INSTALL_DIR}..."
     if [ -w "$INSTALL_DIR" ]; then
-        mv "$TMPDIR/fleetml-bin" "${INSTALL_DIR}/${BINARY_NAME}"
+        mv "$TMPDIR/fleetml-agent-bin" "${INSTALL_DIR}/${BINARY_NAME}"
     else
-        sudo mv "$TMPDIR/fleetml-bin" "${INSTALL_DIR}/${BINARY_NAME}"
+        sudo mv "$TMPDIR/fleetml-agent-bin" "${INSTALL_DIR}/${BINARY_NAME}"
     fi
     chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
 
-    log "FleetML CLI installed (built from source)"
+    log "FleetML agent installed (built from source)"
     echo ""
-    echo -e "  Run: ${BOLD}fleetml init --cloud${NC}"
+    echo -e "  Start the agent:"
+    echo -e "    ${BOLD}export FLEETML_API_KEY=\"your-api-key\"${NC}"
+    echo -e "    ${BOLD}export FLEETML_SERVER=\"your-server:50051\"${NC}"
+    echo -e "    ${BOLD}fleetml-agent${NC}"
     echo ""
     exit 0
 fi
 
 # Download release binary
 VERSION="$LATEST"
-TARBALL="fleetml_${VERSION}_${OS}_${ARCH}.tar.gz"
-DOWNLOAD_URL="https://github.com/${REPO}/releases/download/v${VERSION}/${TARBALL}"
+ASSET_NAME="agent-${OS}-${ARCH}"
+DOWNLOAD_URL="https://github.com/${REPO}/releases/download/v${VERSION}/${ASSET_NAME}"
 
-info "Downloading FleetML CLI v${VERSION}..."
+info "Downloading FleetML agent v${VERSION} (${OS}/${ARCH})..."
 TMPDIR=$(mktemp -d)
 trap "rm -rf $TMPDIR" EXIT
 
-if ! curl -fsSL "$DOWNLOAD_URL" -o "$TMPDIR/$TARBALL"; then
+if ! curl -fsSL "$DOWNLOAD_URL" -o "$TMPDIR/${BINARY_NAME}"; then
     err "Failed to download ${DOWNLOAD_URL}"
 fi
 
-# Extract
-info "Extracting..."
-tar -xzf "$TMPDIR/$TARBALL" -C "$TMPDIR"
+chmod +x "$TMPDIR/${BINARY_NAME}"
 
 # Install
 info "Installing to ${INSTALL_DIR}..."
@@ -105,11 +108,13 @@ if [ -w "$INSTALL_DIR" ]; then
 else
     sudo mv "$TMPDIR/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
 fi
-chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
 
-log "FleetML CLI v${VERSION} installed successfully!"
+log "FleetML agent v${VERSION} installed successfully!"
 echo ""
-echo -e "  Get started:"
-echo -e "    ${BOLD}fleetml init --cloud${NC}    # Connect to FleetML Cloud"
-echo -e "    ${BOLD}fleetml init${NC}            # Connect to self-hosted server"
+echo -e "  ${BOLD}Quick start:${NC}"
+echo -e "    export FLEETML_API_KEY=\"your-api-key\""
+echo -e "    export FLEETML_SERVER=\"your-server:50051\""
+echo -e "    fleetml-agent"
+echo ""
+echo -e "  Get your API key at: ${CYAN}https://app.fleetml.dev/dashboard/get-started${NC}"
 echo ""

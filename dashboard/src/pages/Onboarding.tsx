@@ -121,7 +121,7 @@ export default function OnboardingPage() {
       description: 'The CLI is how you deploy models, manage fleets, and check device status from your terminal.',
       content: (
         <div className="space-y-3">
-          <CodeBlock code="curl -sSL https://raw.githubusercontent.com/ashish-frozo/fleetML/main/scripts/install.sh | bash" />
+          <CodeBlock code="curl -sSL https://raw.githubusercontent.com/frozo-ai/fleetml/main/scripts/install.sh | bash" />
           <p className="text-xs text-gray-400">Verify installation:</p>
           <CodeBlock code="fleetml version" />
         </div>
@@ -165,7 +165,7 @@ export default function OnboardingPage() {
       description: 'SSH into your edge device (Jetson, Raspberry Pi, Intel NUC, etc.) and run:',
       content: (
         <div className="space-y-3">
-          <CodeBlock code="curl -sSL https://raw.githubusercontent.com/ashish-frozo/fleetML/main/scripts/install-agent.sh | sh" />
+          <CodeBlock code="curl -sSL https://raw.githubusercontent.com/frozo-ai/fleetml/main/scripts/install-agent.sh | sh" />
           <p className="text-xs text-gray-400 font-medium mt-2">Then configure it with your API key:</p>
           <CodeBlock code={apiKey
             ? `export FLEETML_API_KEY="${apiKey}"\nexport FLEETML_SERVER="server-production-91d4.up.railway.app:50051"\nfleetml-agent`
@@ -277,7 +277,7 @@ export default function OnboardingPage() {
         <p className="text-sm text-blue-800">
           <strong>Need help?</strong> If you run into any issues, check the{' '}
           <a
-            href="https://github.com/ashish-frozo/fleetML/issues"
+            href="https://github.com/frozo-ai/fleetml/issues"
             target="_blank"
             rel="noopener noreferrer"
             className="underline hover:no-underline"

@@ -18,8 +18,7 @@ type Config struct {
 	NATS      NATSConfig      `yaml:"nats"`
 	Tracing      TracingConfig      `yaml:"tracing"`
 	Integrations IntegrationsConfig `yaml:"integrations"`
-	Billing      BillingConfig      `yaml:"billing"`
-	Logging      LoggingConfig      `yaml:"logging"`
+Logging      LoggingConfig      `yaml:"logging"`
 }
 
 type ServerConfig struct {
@@ -82,16 +81,6 @@ type TracingConfig struct {
 	SampleRate float64 `yaml:"sample_rate"`
 }
 
-type BillingConfig struct {
-	DodoAPIKey       string `yaml:"dodo_api_key"`
-	DodoWebhookKey   string `yaml:"dodo_webhook_key"`
-	DodoEnvironment  string `yaml:"dodo_environment"` // test or live
-	StarterProductID string `yaml:"starter_product_id"`
-	ProProductID     string `yaml:"pro_product_id"`
-	SuccessURL       string `yaml:"success_url"`
-	DashboardURL     string `yaml:"dashboard_url"`
-}
-
 type LoggingConfig struct {
 	Level string `yaml:"level"`
 }
@@ -135,11 +124,6 @@ func DefaultConfig() *Config {
 			Enabled:    false,
 			Endpoint:   "localhost:4318",
 			SampleRate: 1.0,
-		},
-		Billing: BillingConfig{
-			DodoEnvironment: "test",
-			SuccessURL:      "http://localhost:3000/dashboard/billing?success=true",
-			DashboardURL:    "http://localhost:3000/dashboard",
 		},
 		Logging: LoggingConfig{
 			Level: "info",
@@ -190,27 +174,6 @@ func Load(path string) (*Config, error) {
 	}
 	if v := os.Getenv("HF_TOKEN"); v != "" {
 		cfg.Integrations.HFToken = v
-	}
-	if v := os.Getenv("DODO_API_KEY"); v != "" {
-		cfg.Billing.DodoAPIKey = v
-	}
-	if v := os.Getenv("DODO_WEBHOOK_KEY"); v != "" {
-		cfg.Billing.DodoWebhookKey = v
-	}
-	if v := os.Getenv("DODO_ENVIRONMENT"); v != "" {
-		cfg.Billing.DodoEnvironment = v
-	}
-	if v := os.Getenv("DODO_STARTER_PRODUCT_ID"); v != "" {
-		cfg.Billing.StarterProductID = v
-	}
-	if v := os.Getenv("DODO_PRO_PRODUCT_ID"); v != "" {
-		cfg.Billing.ProProductID = v
-	}
-	if v := os.Getenv("BILLING_SUCCESS_URL"); v != "" {
-		cfg.Billing.SuccessURL = v
-	}
-	if v := os.Getenv("BILLING_DASHBOARD_URL"); v != "" {
-		cfg.Billing.DashboardURL = v
 	}
 	if v := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"); v != "" {
 		cfg.Tracing.Endpoint = v

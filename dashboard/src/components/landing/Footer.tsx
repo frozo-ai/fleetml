@@ -4,13 +4,14 @@ const productLinks = [
   { label: 'Features', href: '#features' },
   { label: 'Pricing', href: '#pricing' },
   { label: 'How It Works', href: '#how-it-works' },
-  { label: 'Architecture', href: '#architecture' },
+  { label: 'GitHub', href: 'https://github.com/frozo-ai/fleetml' },
 ];
 
 const resourceLinks = [
-  { label: 'Get Started', href: '#get-started', external: false },
-  { label: 'Pricing', href: '#pricing', external: false },
-  { label: 'FAQ', href: '#faq', external: false },
+  { label: 'Blog', href: '/blog', external: false },
+  { label: 'What is Edge MLOps?', href: '/blog/what-is-edge-mlops', external: false },
+  { label: 'FleetML vs Greengrass', href: '/compare/greengrass', external: false },
+  { label: 'GitHub', href: 'https://github.com/frozo-ai/fleetml', external: true },
 ];
 
 export default function Footer() {

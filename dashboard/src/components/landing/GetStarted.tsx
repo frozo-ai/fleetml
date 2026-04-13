@@ -12,7 +12,7 @@ const steps = [
     step: '2',
     title: 'Install the CLI',
     description: 'One command installs the FleetML CLI on macOS or Linux.',
-    code: 'curl -sSL https://raw.githubusercontent.com/ashish-frozo/fleetML/main/scripts/install.sh | bash',
+    code: 'curl -sSL https://raw.githubusercontent.com/frozo-ai/fleetml/main/scripts/install.sh | bash',
   },
   {
     step: '3',
@@ -31,7 +31,7 @@ const steps = [
     step: '5',
     title: 'Install the agent on your edge device',
     description: 'SSH into your device (Jetson, RPi, Intel NUC, etc.) and run the installer, then start the agent with your API key.',
-    code: 'curl -sSL https://raw.githubusercontent.com/ashish-frozo/fleetML/main/scripts/install-agent.sh | sh',
+    code: 'curl -sSL https://raw.githubusercontent.com/frozo-ai/fleetml/main/scripts/install-agent.sh | sh',
     code2: 'FLEETML_API_KEY=flml_your_key FLEETML_SERVER=your-server:50051 fleetml-agent',
   },
   {

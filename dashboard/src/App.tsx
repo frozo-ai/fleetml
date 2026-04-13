@@ -13,7 +13,6 @@ import ABTestsPage from './pages/ABTests'
 import PoliciesPage from './pages/Policies'
 import DriftAlertsPage from './pages/DriftAlerts'
 import CompilePage from './pages/Compile'
-import BillingPage from './pages/Billing'
 import OnboardingPage from './pages/Onboarding'
 import SettingsPage from './pages/Settings'
 
@@ -51,8 +50,7 @@ function App() {
       <Route path="/dashboard/policies" element={<ProtectedRoute><Layout><PoliciesPage /></Layout></ProtectedRoute>} />
       <Route path="/dashboard/drift" element={<ProtectedRoute><Layout><DriftAlertsPage /></Layout></ProtectedRoute>} />
       <Route path="/dashboard/compile" element={<ProtectedRoute><Layout><CompilePage /></Layout></ProtectedRoute>} />
-      <Route path="/dashboard/billing" element={<ProtectedRoute><Layout><BillingPage /></Layout></ProtectedRoute>} />
-      <Route path="/dashboard/settings" element={<ProtectedRoute><Layout><SettingsPage /></Layout></ProtectedRoute>} />
+<Route path="/dashboard/settings" element={<ProtectedRoute><Layout><SettingsPage /></Layout></ProtectedRoute>} />
     </Routes>
   )
 }

@@ -41,14 +41,6 @@ export const api = {
   getAPIKey: () => request<{ api_key: string }>('/api/v1/api-keys'),
   regenerateAPIKey: () => request<{ api_key: string }>('/api/v1/api-keys/regenerate', { method: 'POST' }),
 
-  // Billing
-  getSubscription: () => request<{ plan: string; status: string; dodo_subscription_id?: string }>('/api/v1/billing/subscription'),
-  createCheckout: (plan: string) =>
-    request<{ checkout_url: string; session_id: string }>('/api/v1/billing/checkout', {
-      method: 'POST',
-      body: JSON.stringify({ plan }),
-    }),
-
   // Devices
   listDevices: (params?: { status?: string; fleet_id?: string }) => {
     const query = new URLSearchParams(params as Record<string, string>).toString();

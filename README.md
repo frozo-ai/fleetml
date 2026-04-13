@@ -4,8 +4,8 @@
     <strong>Deploy AI models to edge device fleets — one command, any chip, offline-first.</strong>
   </p>
   <p align="center">
-    <a href="https://github.com/ashish-frozo/fleetML/actions/workflows/ci.yml"><img src="https://github.com/ashish-frozo/fleetML/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-    <a href="https://github.com/ashish-frozo/fleetML/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
+    <a href="https://github.com/frozo-ai/fleetml/actions/workflows/ci.yml"><img src="https://github.com/frozo-ai/fleetml/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+    <a href="https://github.com/frozo-ai/fleetml/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
     <img src="https://img.shields.io/badge/go-1.24+-00ADD8.svg" alt="Go 1.24+">
     <img src="https://img.shields.io/badge/python-3.11+-3776AB.svg" alt="Python 3.11+">
     <img src="https://img.shields.io/badge/tests-854%20passing-brightgreen.svg" alt="Tests">
@@ -39,7 +39,7 @@ You trained a great model. Now you need it running on 200 devices across 3 chip 
 
 ```bash
 # Clone and run — one command starts everything with 6 simulated devices
-git clone https://github.com/ashish-frozo/fleetML.git && cd fleetML
+git clone https://github.com/frozo-ai/fleetml.git && cd fleetml
 make quickstart
 ```
 
@@ -248,13 +248,13 @@ We welcome contributions. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ```bash
 # Local dev setup
-git clone https://github.com/ashish-frozo/fleetML.git && cd fleetML
+git clone https://github.com/frozo-ai/fleetml.git && cd fleetml
 docker compose up -d db minio nats    # Start infrastructure
 cd server && go run ./cmd/server      # Start the server
 cd dashboard && npm run dev           # Start the dashboard
 ```
 
-**Good first issues** are tagged in the [issue tracker](https://github.com/ashish-frozo/fleetML/issues).
+**Good first issues** are tagged in the [issue tracker](https://github.com/frozo-ai/fleetml/issues).
 
 ## Roadmap
 
@@ -284,5 +284,5 @@ cd dashboard && npm run dev           # Start the dashboard
   <br>
   <a href="docs/quickstart.md">Get Started</a> &nbsp;|&nbsp;
   <a href="docs/architecture.md">Architecture</a> &nbsp;|&nbsp;
-  <a href="https://github.com/ashish-frozo/fleetML/issues">Issues</a>
+  <a href="https://github.com/frozo-ai/fleetml/issues">Issues</a>
 </p>

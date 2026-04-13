@@ -5,8 +5,7 @@ import (
 
 	"github.com/fleetml/fleetml/server/internal/abtest"
 	"github.com/fleetml/fleetml/server/internal/auth"
-	"github.com/fleetml/fleetml/server/internal/billing"
-	"github.com/fleetml/fleetml/server/internal/compiler"
+"github.com/fleetml/fleetml/server/internal/compiler"
 	"github.com/fleetml/fleetml/server/internal/deploy"
 	"github.com/fleetml/fleetml/server/internal/drift"
 	"github.com/fleetml/fleetml/server/internal/fleet"
@@ -32,7 +31,6 @@ func NewRouter(
 	driftDetector *drift.Detector,
 	policyEngine *policy.Engine,
 	integrationSvc *integrations.Service,
-	billingClient *billing.Client,
 	jwtService *auth.JWTService,
 	db *pgxpool.Pool,
 	logger *zap.SugaredLogger,
@@ -73,7 +71,6 @@ func NewRouter(
 	driftHandler := NewDriftHandler(driftDetector, logger)
 	policyHandler := NewPolicyHandler(policyEngine, logger)
 	integrationHandler := NewIntegrationHandler(integrationSvc, logger)
-	billingHandler := NewBillingHandler(billingClient, logger)
 	apiKeyHandler := NewAPIKeyHandler(db, logger)
 
 	// Strict rate limiter for auth endpoints
@@ -85,22 +82,12 @@ func NewRouter(
 		r.With(authLimiter.Middleware, mw.RequestSizeLimit()).Post("/auth/register", authHandler.Register)
 		r.With(authLimiter.Middleware, mw.RequestSizeLimit()).Post("/auth/login", authHandler.Login)
 
-		// Dodo Payments webhook (public, verified by webhook signature)
-		r.With(mw.RequestSizeLimit()).Post("/webhooks/dodo", billingHandler.Webhook)
-
 		// Authenticated routes
 		r.Group(func(r chi.Router) {
 			r.Use(jwtService.AuthMiddleware)
 
 			// Auth
 			r.With(mw.RequestSizeLimit()).Get("/auth/me", authHandler.Me)
-
-			// Billing
-			r.Route("/billing", func(r chi.Router) {
-				r.Use(mw.RequestSizeLimit())
-				r.Get("/subscription", billingHandler.GetSubscription)
-				r.Post("/checkout", billingHandler.CreateCheckout)
-			})
 
 			// API Keys
 			r.Route("/api-keys", func(r chi.Router) {

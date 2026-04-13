@@ -11,8 +11,7 @@ const navItems = [
   { path: '/dashboard/policies', label: 'Policies', icon: 'P' },
   { path: '/dashboard/drift', label: 'Drift', icon: 'W' },
   { path: '/dashboard/compile', label: 'Compile', icon: 'C' },
-  { path: '/dashboard/billing', label: 'Billing', icon: 'B' },
-  { path: '/dashboard/settings', label: 'Settings', icon: 'S' },
+{ path: '/dashboard/settings', label: 'Settings', icon: 'S' },
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {

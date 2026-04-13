@@ -125,7 +125,7 @@ func initCloud(cmd *cobra.Command) error {
 	fmt.Println("FleetML Cloud is ready! Next steps:")
 	fmt.Println()
 	fmt.Println("  1. Install the agent on your edge device:")
-	fmt.Println("     curl -sSL https://raw.githubusercontent.com/ashish-frozo/fleetML/main/scripts/install-agent.sh | sh")
+	fmt.Println("     curl -sSL https://raw.githubusercontent.com/frozo-ai/fleetml/main/scripts/install-agent.sh | sh")
 	fmt.Println()
 	fmt.Println("  2. Deploy a model:")
 	fmt.Println("     fleetml deploy model.onnx --fleet default")
